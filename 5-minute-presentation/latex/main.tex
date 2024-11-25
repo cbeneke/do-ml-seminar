@@ -1,0 +1,44 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\title{Neural Implicit Flow (NIF)}
+\author{Christian Beneke}
+\date{28.11.2024}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Problem Statement}
+\begin{itemize}
+    \item Spatio-temporal data modeled by PDEs is computationally challenging.
+    \begin{itemize}
+        \item Examples: turbulence modeling, sparse sensing, surrogate modeling
+    \end{itemize}
+    \item Current reduction methods (SVD, CAE) fail with variable geometry or adaptive meshing.
+    \item Need for a scalable, mesh-agnostic approach for real-time engineering applications.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{New Approach: Neural Implicit Flow (NIF)}
+\begin{itemize}
+    \item Combines two neural networks:
+    \begin{itemize}
+        \item \textbf{ShapeNet:} Encodes spatial complexity mesh-agnostically.
+        \item \textbf{ParameterNet:} Models temporal and parametric dependencies.
+    \end{itemize}
+    \item Provides efficient, nonlinear dimensionality reduction and interpretable representations.
+\end{itemize}
+\begin{figure}
+    \includegraphics[width=0.6\linewidth]{hypernetwork_diagram.png}
+    \caption{NIF Hypernetwork Architecture}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Key Results}
+\begin{itemize}
+    \item 40\% better generalization performance compared to conventional methods.
+    \item Scalable to adaptive mesh and complex spatio-temporal datasets.
+\end{itemize}
+\end{frame}
+
+\end{document}

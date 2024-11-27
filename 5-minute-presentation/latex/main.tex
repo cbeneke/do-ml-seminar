@@ -11,11 +11,9 @@
 \begin{frame}{Problem Statement}
 \begin{itemize}
     \item Spatio-temporal data modeled by PDEs is computationally challenging.
-    \begin{itemize}
-        \item Examples: turbulence modeling, sparse sensing, surrogate modeling
-    \end{itemize}
     \item Current reduction methods (SVD, CAE) fail with variable geometry or adaptive meshing.
     \item Need for a scalable, mesh-agnostic approach for real-time engineering applications.
+    \item Examples: Sea surface temperature modeling, turbulence modeling, sparse sensing.
 \end{itemize}
 \end{frame}
 
@@ -34,10 +32,35 @@
 \end{figure}
 \end{frame}
 
-\begin{frame}{Key Results}
+\begin{frame}{My Contributions}
 \begin{itemize}
-    \item 40\% better generalization performance compared to conventional methods.
-    \item Scalable to adaptive mesh and complex spatio-temporal datasets.
+    \item Performance tuning of the provided implementation.
+    \item Re-Evaluation of the results
+    \begin{itemize}
+        \item 40\% better generalization performance
+        \item Scalable to complex spatio-temporal datasets
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{My Contributions - Performance tuning}
+\begin{itemize}
+    \item Performance tuning of the provided implementation.
+    \begin{itemize}
+        \item Port from Tensorflow to PyTorch
+        \item Implementation using upstream SIREN
+        \item Improving parallelism in learning phase
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{My Contributions - Result Re-Evaluation}
+\begin{itemize}
+    \item Re-Evaluation of results - with focus on chaotic systems
+    \begin{itemize}
+        \item Comparison to other Hypernetworks / LoRA / etc
+        \item Comparing the existing results using own implementation
+    \end{itemize}
 \end{itemize}
 \end{frame}
 

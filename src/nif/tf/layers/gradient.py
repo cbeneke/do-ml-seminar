@@ -1,7 +1,8 @@
 import nif.tf as nif
+import tensorflow as tf
 
 
-class JacobianLayer(nif.keras.layers.Layer):
+class JacobianLayer(tf.keras.layers.Layer):
     """
     A custom Keras layer that computes the Jacobian matrix of a TensorFlow model.
 
@@ -33,7 +34,7 @@ class JacobianLayer(nif.keras.layers.Layer):
         self.y_index = y_index
         self.x_index = x_index
 
-    @nif.function
+    @tf.function
     def call(self, x, **kwargs):
         """
         Computes the output of the model and the Jacobian matrix.
@@ -92,7 +93,7 @@ class JacRegLatentLayer(JacobianLayer):
         super().__init__(model, y_index, x_index, dtype=mixed_policy, **kwargs)
         self.l1 = nif.cast(l1, self.mixed_policy.compute_dtype).numpy()
 
-    @nif.function
+    @tf.function
     def call(self, x, **kwargs):
         """
         Computes the output of the model and the Jacobian regularization loss.
@@ -127,7 +128,7 @@ class JacRegLatentLayer(JacobianLayer):
         return config
 
 
-class HessianLayer(nif.keras.layers.Layer):
+class HessianLayer(tf.keras.layers.Layer):
     """
     A custom Keras layer that computes the Hessian matrix of a TensorFlow model's output.
 
@@ -160,7 +161,7 @@ class HessianLayer(nif.keras.layers.Layer):
         self.y_index = y_index
         self.x_index = x_index
 
-    @nif.function
+    @tf.function
     def call(self, x, **kwargs):
         """
         Computes the output of the model, the Jacobian matrix, and the Hessian matrix.

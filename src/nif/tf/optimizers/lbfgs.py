@@ -1,5 +1,6 @@
 # code comes from: https://gist.github.com/piyueh/712ec7d4540489aad2dcfb80f9a54993
 import numpy as np
+import tensorflow as tf
 import nif.tf as nif
 from tensorflow_probability.python.optimizer import lbfgs_minimize
 
@@ -36,7 +37,7 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
 
     part = nif.constant(part)
 
-    @nif.function
+    @tf.function
     def assign_new_model_parameters(params_1d):
         """A function updating the model's parameters with a 1D tf.Tensor.
 
@@ -49,7 +50,7 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
             model.trainable_variables[i].assign(nif.reshape(param, shape))
 
     # now create a function that will be returned by this factory
-    @nif.function
+    @tf.function
     def f(params_1d):
         """A function that can be used by tfp.optimizer.lbfgs_minimize.
 

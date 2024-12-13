@@ -11,6 +11,4 @@ __pycache__/
 *.meta
 *.h5
 *.keras
-
-# VSCode
-.vscode/
+saved_weights/

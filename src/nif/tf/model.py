@@ -33,6 +33,7 @@ import json
 import tensorflow as tf
 from tensorflow.keras import Model, initializers
 from tensorflow.keras import regularizers
+from tensorflow.keras.layers import Lambda
 
 from .layers import Dense
 from .layers import EinsumLayer
@@ -143,7 +144,7 @@ class NIF(object):
         input_s = inputs[:, self.pi_dim : self.pi_dim + self.si_dim]
         self.pnet_output = self._call_parameter_net(input_p, self.pnet_list)[0]
         return self._call_shape_net(
-            tf.cast(input_s, self.compute_Dtype),
+            Lambda(lambda x: tf.cast(x, self.compute_Dtype))(input_s),
             self.pnet_output,
             si_dim=self.si_dim,
             so_dim=self.so_dim,
@@ -250,78 +251,73 @@ class NIF(object):
         Returns:
             tf.Tensor: The output tensor of the shape network.
         """
-        w_1 = tf.reshape(
-            pnet_output[:, : si_dim * n_sx], [-1, si_dim, n_sx], name="w_first_snet"
-        )
+        w_1 = Lambda(
+            lambda x: tf.reshape(x[:, :si_dim * n_sx], [-1, si_dim, n_sx]),
+            name="w_first_snet"
+        )(pnet_output)
+        
         w_hidden_list = []
         for i in range(l_sx):
-            w_tmp = tf.reshape(
-                pnet_output[
-                    :,
-                    si_dim * n_sx + i * n_sx**2 : si_dim * n_sx + (i + 1) * n_sx**2,
-                ],
-                [-1, n_sx, n_sx],
-                name="w_hidden_snet_{}".format(i),
-            )
+            w_tmp = Lambda(
+                lambda x: tf.reshape(
+                    x[:, si_dim * n_sx + i * n_sx**2 : si_dim * n_sx + (i + 1) * n_sx**2],
+                    [-1, n_sx, n_sx]
+                ),
+                name=f"w_hidden_snet_{i}"
+            )(pnet_output)
             w_hidden_list.append(w_tmp)
-        w_l = tf.reshape(
-            pnet_output[
-                :,
-                si_dim * n_sx
-                + l_sx * n_sx**2 : si_dim * n_sx
-                + l_sx * n_sx**2
-                + so_dim * n_sx,
-            ],
-            [-1, n_sx, so_dim],
-            name="w_last_snet",
-        )
+        
+        w_l = Lambda(
+            lambda x: tf.reshape(
+                x[:, si_dim * n_sx + l_sx * n_sx**2 : si_dim * n_sx + l_sx * n_sx**2 + so_dim * n_sx],
+                [-1, n_sx, so_dim]
+            ),
+            name="w_last_snet"
+        )(pnet_output)
+
         n_weights = si_dim * n_sx + l_sx * n_sx**2 + so_dim * n_sx
 
         # distribute bias
-        b_1 = tf.reshape(
-            pnet_output[:, n_weights : n_weights + n_sx],
-            [-1, n_sx],
-            name="b_first_snet",
-        )
+        b_1 = Lambda(
+            lambda x: tf.reshape(x[:, n_weights:n_weights + n_sx], [-1, n_sx]),
+            name="b_first_snet"
+        )(pnet_output)
+        
         b_hidden_list = []
         for i in range(l_sx):
-            b_tmp = tf.reshape(
-                pnet_output[
-                    :, n_weights + n_sx + i * n_sx : n_weights + n_sx + (i + 1) * n_sx
-                ],
-                [-1, n_sx],
-                name="b_hidden_snet_{}".format(i),
-            )
+            b_tmp = Lambda(
+                lambda x: tf.reshape(
+                    x[:, n_weights + n_sx + i * n_sx:n_weights + n_sx + (i + 1) * n_sx],
+                    [-1, n_sx]
+                ),
+                name=f"b_hidden_snet_{i}"
+            )(pnet_output)
             b_hidden_list.append(b_tmp)
-        b_l = tf.reshape(
-            pnet_output[:, n_weights + (l_sx + 1) * n_sx :],
-            [-1, so_dim],
-            name="b_last_snet",
-        )
+        
+        b_l = Lambda(
+            lambda x: tf.reshape(
+                x[:, n_weights + (l_sx + 1) * n_sx:],
+                [-1, so_dim]
+            ),
+            name="b_last_snet"
+        )(pnet_output)
 
         # construct shape net
         act_fun = tf.keras.activations.get(activation)
-        u = act_fun(
-            EinsumLayer("ai,aij->aj", name="first_einsum_snet")((input_s, w_1)) + b_1
-        )
-        # u = act_fun(tf.einsum('ai,aij->aj', input_s, w_1) + b_1)
+        u = act_fun(EinsumLayer("ai,aij->aj", name="first_einsum_snet")((input_s, w_1)) + b_1)
 
         for i in range(l_sx):
             w_tmp = w_hidden_list[i]
             b_tmp = b_hidden_list[i]
-            u = (
-                act_fun(
-                    EinsumLayer("ai,aij->aj", name="hidden_einsum_snet_{}".format(i))(
-                        (u, w_tmp)
-                    )
-                    + b_tmp
-                )
-                + u
-            )
-            # u = act_fun(tf.einsum('ai,aij->aj', u, w_tmp) + b_tmp) + u
+            u = act_fun(
+                EinsumLayer("ai,aij->aj", name=f"hidden_einsum_snet_{i}")((u, w_tmp)) + b_tmp
+            ) + u
+            
         u = EinsumLayer("ai,aij->aj", name="last_einsum_snet")((u, w_l)) + b_l
-        # u = tf.einsum('ai,aij->aj', u, w_l) + b_l
-        return tf.cast(u, variable_dtype, name="output_cast_snet")
+        return tf.keras.layers.Lambda(
+            lambda x: tf.cast(x, variable_dtype),
+            name="output_cast_snet"
+        )(u)
 
     @staticmethod
     def _call_parameter_net(input_p, pnet_list):
@@ -951,7 +947,10 @@ class NIFMultiScale(NIF):
             u = EinsumLayer("ai,aij->aj", name="last_einsum_snet")((u, w_l)) + b_l
             # u = tf.einsum('ai,aij->aj', u, w_l) + b_l
 
-        return tf.cast(u, variable_dtype, name="output_cast_snet")
+        return tf.keras.layers.Lambda(
+            lambda x: tf.cast(x, variable_dtype),
+            name="output_cast_snet"
+        )(u)
 
     def model_x_to_u_given_w(self):
         """
@@ -1266,4 +1265,7 @@ class NIFMultiScaleLastLayerParameterized(NIFMultiScale):
         )
         u = tf.keras.layers.Dot(axes=(2, 1))([phi_x_matrix, pnet_output])
         u = self.last_bias_layer(u)
-        return tf.cast(u, variable_dtype, name="output_cast")
+        return tf.keras.layers.Lambda(
+            lambda x: tf.cast(x, variable_dtype),
+            name="output_cast"
+        )(u)

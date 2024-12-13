@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-import tensorflow as tf
+import nif.tf as nif
 
 
 class TFRDataset(object):
@@ -14,7 +14,7 @@ class TFRDataset(object):
     """
 
     def __init__(self, n_feature, n_target, area_weight=False):
-        self.AUTOTUNE = tf.data.experimental.AUTOTUNE
+        self.AUTOTUNE = nif.data.experimental.AUTOTUNE
         self.n_feature = n_feature
         self.n_target = n_target
         self.area_weight = area_weight
@@ -62,23 +62,23 @@ class TFRDataset(object):
 
             feature_dict = {}
             for j in range(self.n_feature):
-                feature_dict["input_" + str(j)] = tf.train.Feature(
-                    float_list=tf.train.FloatList(value=data_feature_[:, j])
+                feature_dict["input_" + str(j)] = nif.train.Feature(
+                    float_list=nif.train.FloatList(value=data_feature_[:, j])
                 )
             for j in range(self.n_target):
-                feature_dict["output_" + str(j)] = tf.train.Feature(
-                    float_list=tf.train.FloatList(value=data_target_[:, j])
+                feature_dict["output_" + str(j)] = nif.train.Feature(
+                    float_list=nif.train.FloatList(value=data_target_[:, j])
                 )
 
             if self.area_weight:
                 data_weight_ = data_weight[i0:i1]
-                feature_dict["weight"] = tf.train.Feature(
-                    float_list=tf.train.FloatList(value=data_weight_)
+                feature_dict["weight"] = nif.train.Feature(
+                    float_list=nif.train.FloatList(value=data_weight_)
                 )
 
-            with tf.io.TFRecordWriter(filename) as writer:
-                example = tf.train.Example(
-                    features=tf.train.Features(feature=feature_dict)
+            with nif.io.TFRecordWriter(filename) as writer:
+                example = nif.train.Example(
+                    features=nif.train.Features(feature=feature_dict)
                 )
                 writer.write(example.SerializeToString())
 
@@ -93,20 +93,20 @@ class TFRDataset(object):
             tf.data.Dataset: A TensorFlow Dataset object.
 
         """
-        features = tf.transpose(
-            tf.squeeze(tf.stack(batch_file[: self.n_feature], 0), 1)
+        features = nif.transpose(
+            nif.squeeze(nif.stack(batch_file[: self.n_feature], 0), 1)
         )
         if self.area_weight:
-            target = tf.transpose(
+            target = nif.transpose(
                 batch_file[self.n_feature : self.n_feature + self.n_target]
             )
-            weight = tf.reshape(batch_file[-1], (-1, 1))
-            batch_dataset = tf.data.Dataset.from_tensor_slices(
+            weight = nif.reshape(batch_file[-1], (-1, 1))
+            batch_dataset = nif.data.Dataset.from_tensor_slices(
                 (features, target, weight)
             )
         else:
-            target = tf.transpose(batch_file[-self.n_target :])
-            batch_dataset = tf.data.Dataset.from_tensor_slices((features, target))
+            target = nif.transpose(batch_file[-self.n_target :])
+            batch_dataset = nif.data.Dataset.from_tensor_slices((features, target))
         batch_dataset = (
             batch_dataset.shuffle(features.shape[0])
             .batch(batch_size)
@@ -130,27 +130,27 @@ class TFRDataset(object):
         # I cannot use point wise data line by line for example.
         # because it will end up with an unacceptable create-file time.
 
-        filenames = tf.io.gfile.glob(f"{tfr_path}/*.tfrecord")
+        filenames = nif.io.gfile.glob(f"{tfr_path}/*.tfrecord")
         self.num_pts_per_file = len(filenames)
 
         def prepare_sample(example):
             schema = {}
             for j in range(self.n_feature):
-                schema["input_" + str(j)] = tf.io.FixedLenSequenceFeature(
-                    [], tf.float32, allow_missing=True
+                schema["input_" + str(j)] = nif.io.FixedLenSequenceFeature(
+                    [], nif.float32, allow_missing=True
                 )
             for j in range(self.n_target):
-                schema["output_" + str(j)] = tf.io.FixedLenSequenceFeature(
-                    [], tf.float32, allow_missing=True
+                schema["output_" + str(j)] = nif.io.FixedLenSequenceFeature(
+                    [], nif.float32, allow_missing=True
                 )
             if self.area_weight:
-                schema["weight"] = tf.io.FixedLenSequenceFeature(
-                    [], tf.float32, allow_missing=True
+                schema["weight"] = nif.io.FixedLenSequenceFeature(
+                    [], nif.float32, allow_missing=True
                 )
-            data_dict = tf.io.parse_single_example(example, schema)
+            data_dict = nif.io.parse_single_example(example, schema)
             return list(data_dict.values())
 
-        dataset = tf.data.TFRecordDataset(filenames)
+        dataset = nif.data.TFRecordDataset(filenames)
         dataset = dataset.map(prepare_sample, num_parallel_calls=self.AUTOTUNE)
         if tfr_shuffle_buffer_size > 1:
             dataset = dataset.shuffle(buffer_size=tfr_shuffle_buffer_size)

@@ -1,6 +1,7 @@
 # code comes from: https://gist.github.com/piyueh/712ec7d4540489aad2dcfb80f9a54993
 import numpy as np
 import tensorflow as tf
+import nif.tf as nif
 from tensorflow_probability.python.optimizer import lbfgs_minimize
 
 
@@ -19,7 +20,7 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
     """
 
     # obtain the shapes of all trainable parameters in the model
-    shapes = tf.shape_n(model.trainable_variables)
+    shapes = nif.shape_n(model.trainable_variables)
     n_tensors = len(shapes)
 
     # we'll use tf.dynamic_stitch and tf.dynamic_partition later, so we need to
@@ -30,11 +31,11 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
 
     for i, shape in enumerate(shapes):
         n = np.product(shape)
-        idx.append(tf.reshape(tf.range(count, count + n, dtype=tf.int32), shape))
+        idx.append(nif.reshape(nif.range(count, count + n, dtype=nif.int32), shape))
         part.extend([i] * n)
         count += n
 
-    part = tf.constant(part)
+    part = nif.constant(part)
 
     @tf.function
     def assign_new_model_parameters(params_1d):
@@ -44,9 +45,9 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
             params_1d [in]: a 1D tf.Tensor representing the model's trainable parameters.
         """
 
-        params = tf.dynamic_partition(params_1d, part, n_tensors)
+        params = nif.dynamic_partition(params_1d, part, n_tensors)
         for i, (shape, param) in enumerate(zip(shapes, params)):
-            model.trainable_variables[i].assign(tf.reshape(param, shape))
+            model.trainable_variables[i].assign(nif.reshape(param, shape))
 
     # now create a function that will be returned by this factory
     @tf.function
@@ -63,7 +64,7 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
         """
 
         # use GradientTape so that we can calculate the gradient of loss w.r.t. parameters
-        with tf.GradientTape() as tape:
+        with nif.GradientTape() as tape:
             # update the parameters in the model
             assign_new_model_parameters(params_1d)
             # calculate the loss
@@ -71,21 +72,21 @@ def function_factory(model, loss, train_x, train_y, display_epoch):
 
         # calculate gradients and convert to 1D tf.Tensor
         grads = tape.gradient(loss_value, model.trainable_variables)
-        grads = tf.dynamic_stitch(idx, grads)
+        grads = nif.dynamic_stitch(idx, grads)
 
         # print out iteration & loss
         f.iter.assign_add(1)
 
         if f.iter % display_epoch == 0:
-            tf.print("Epoch:", f.iter, "loss:", loss_value)
+            nif.print("Epoch:", f.iter, "loss:", loss_value)
 
         # store loss value so we can retrieve later
-        tf.py_function(f.history.append, inp=[loss_value], Tout=[])
+        nif.py_function(f.history.append, inp=[loss_value], Tout=[])
 
         return loss_value, grads
 
     # store these information as members so we can use them outside the scope
-    f.iter = tf.Variable(0)
+    f.iter = nif.Variable(0)
     f.idx = idx
     f.part = part
     f.shapes = shapes
@@ -105,7 +106,7 @@ class TFPLBFGS(object):
         for _ in range(rounds):
             results = lbfgs_minimize(
                 value_and_gradients_function=self.func,
-                initial_position=tf.dynamic_stitch(
+                initial_position=nif.dynamic_stitch(
                     self.func.idx, self.model.trainable_variables
                 ),
                 num_correction_pairs=20,

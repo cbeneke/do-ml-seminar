@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Tensorflow
+*.pb
+*.pbtxt
+*.ckpt
+*.index
+*.data-00000-of-00001
+*.meta
+*.h5
+*.keras
+saved_weights/

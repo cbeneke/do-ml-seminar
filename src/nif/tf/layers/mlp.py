@@ -1,6 +1,8 @@
 import tensorflow as tf
 import tensorflow_model_optimization as tfmot
 
+import nif.tf as nif
+
 
 class MLP_ResNet(tf.keras.layers.Layer, tfmot.sparsity.keras.PrunableLayer):
     """
@@ -71,8 +73,8 @@ class MLP_ResNet(tf.keras.layers.Layer, tfmot.sparsity.keras.PrunableLayer):
         """
         h1 = self.L1(x)
         h2 = self.L2(h1)
-        y = self.act(x + tf.cast(h2, self.compute_Dtype))
-        return tf.cast(
+        y = self.act(x + nif.cast(h2, self.compute_Dtype))
+        return nif.cast(
             y,
             self.variable_Dtype,
             name=kwargs.get("name", "MLP_ResNet") + "_output_cast",
@@ -243,7 +245,7 @@ class BiasAddLayer(tf.keras.layers.Layer):
         self.output_dim = output_dim
         self.mixed_policy = mixed_policy
         last_layer_init = tf.keras.initializers.TruncatedNormal(stddev=0.1)
-        self.last_layer_bias = tf.Variable(
+        self.last_layer_bias = nif.Variable(
             last_layer_init([output_dim]),
             dtype=self.mixed_policy.variable_dtype,
             name="last_layer_bias_snet",

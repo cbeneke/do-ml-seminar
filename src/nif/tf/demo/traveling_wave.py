@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-from nif.data.point_wise_data import PointWiseData
+from nif.tf.data.point_wise_data import PointWiseData
 
 
 class TravelingWave(PointWiseData):

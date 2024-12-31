@@ -2,11 +2,22 @@ import time
 import logging
 import tensorflow as tf
 
+import matplotlib.pyplot as plt
+
 display_epoch = 100
 print_figure_epoch = 100
 batch_size = 512
+checkpt_epoch = 1000
+
 
 class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
+    def __init__(self, nepoch, train_data, xx, tt):
+        super().__init__()
+        self.train_data = train_data
+        self.xx = xx 
+        self.tt = tt
+        self.nepoch = nepoch
+
     def on_train_begin(self, logs=None):
         self.train_begin_time = time.time()
         self.history_loss = []
@@ -30,15 +41,15 @@ class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
             plt.savefig('./loss.png')
             plt.close()
 
-            u_pred = self.model.predict(train_data[:,0:2]).reshape(10,200)
+            u_pred = self.model.predict(self.train_data[:,0:2]).reshape(10,200)
             fig,axs=plt.subplots(1,3,figsize=(16,4))
-            im1=axs[0].contourf(tt, xx, train_data[:,-1].reshape(10,200),vmin=-5,vmax=5,levels=50,cmap='seismic')
+            im1=axs[0].contourf(self.tt, self.xx, self.train_data[:,-1].reshape(10,200),vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im1,ax=axs[0])
 
-            im2=axs[1].contourf(tt, xx, u_pred,vmin=-5,vmax=5,levels=50,cmap='seismic')
+            im2=axs[1].contourf(self.tt, self.xx, u_pred,vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im2,ax=axs[1])
 
-            im3=axs[2].contourf(tt, xx, (u_pred-train_data[:,-1].reshape(10,200)),vmin=-5,vmax=5,levels=50,cmap='seismic')
+            im3=axs[2].contourf(self.tt, self.xx, (u_pred-self.train_data[:,-1].reshape(10,200)),vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im3,ax=axs[2])
 
             axs[0].set_xlabel('t')
@@ -49,6 +60,6 @@ class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
             plt.savefig('vis.png')
             plt.close()
 
-        if epoch % checkpt_epoch == 0 or epoch == nepoch - 1:
+        if epoch % checkpt_epoch == 0 or epoch == self.nepoch - 1:
             print('save checkpoint epoch: %d...' % epoch)
             self.model.save_weights("./saved_weights/ckpt-{}.weights.h5".format(epoch))

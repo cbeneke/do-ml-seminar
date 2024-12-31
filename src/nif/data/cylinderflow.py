@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-from nif.tf.data.point_wise_data import PointWiseData
+from nif.data.point_wise_data import PointWiseData
 
 
 class CylinderFlow(PointWiseData):
@@ -24,8 +24,8 @@ class CylinderFlow(PointWiseData):
 
     def __init__(self):
         path = os.path.abspath(__file__)
-        dir_path = os.path.dirname(path)
-        data = np.load(dir_path + "/dataset/cylinderflow.npz")["data"]
+        base_path = os.path.dirname(os.path.dirname(path))
+        data = np.load(base_path + "/dataset/cylinderflow.npz")["data"]
         parameter_data = data[:, [0]]
         x_data = data[:, [1, 2]]
         u_data = data[:, [3, 4]]

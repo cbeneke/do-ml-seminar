@@ -3,7 +3,16 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 
-use_tensorflow = False
+USE_TENSORFLOW = False
+
+if USE_TENSORFLOW:
+    import tensorflow as tf
+    import nif.tf as nif
+    from nif.tf.optimizers import centralized_gradients_for_optimizer
+else:
+    import torch
+    import nif.torch as nif
+    from nif.torch.optimizers import centralized_gradients_for_optimizer
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -13,43 +22,6 @@ batch_size = 512
 
 NT=10 # 20
 NX=200
-
-## TensorFlow
-if use_tensorflow:
-    import tensorflow as tf
-    import nif.tf as nif
-    from nif.tf.optimizers import centralized_gradients_for_optimizer
-
-    from nif.tf.demo import TravelingWave
-    tw = TravelingWave()
-    train_data = tw.data
-
-    num_total_data = train_data.shape[0]
-    train_dataset = tf.data.Dataset.from_tensor_slices((train_data[:, :2], train_data[:, -1:]))
-    train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-
-## PyTorch
-else:
-    import torch
-    import nif.torch as nif
-    from nif.torch.optimizers import centralized_gradients_for_optimizer
-
-    from nif.torch.demo import TravelingWave
-    tw = TravelingWave()
-    train_data = tw.data
-
-    num_total_data = train_data.shape[0]
-    indices = torch.randperm(num_total_data)
-    train_inputs = torch.from_numpy(train_data[:, :2]).float()
-    train_targets = torch.from_numpy(train_data[:, -1:]).float()
-    train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, 
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=0,
-        pin_memory=True
-    )
 
 x = np.linspace(0,1,NX,endpoint=False)
 t = np.linspace(0,100,NT,endpoint=False)
@@ -115,8 +87,19 @@ def scheduler(epoch, lr):
     else:
         return 1e-4
 
-if use_tensorflow:
-    scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+from nif.data import TravelingWave
+tw = TravelingWave()
+train_data = tw.data
+
+num_total_data = train_data.shape[0]
+
+
+## TensorFlow
+if USE_TENSORFLOW:
+    train_inputs = train_data[:, :2]
+    train_targets = train_data[:, -1:]
+    train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
+    train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
     cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
     with cm:
@@ -131,15 +114,21 @@ if use_tensorflow:
     # Create directory for saved weights if it doesn't exist
     os.makedirs('./saved_weights', exist_ok=True)
 
-    # callbacks = []
-    callbacks = [nif.tf.utils.LossAndErrorPrintingCallback(), scheduler_callback]
-    # callbacks = [tensorboard_callback, ]
-    # callbacks = [tensorboard_callback, LossAndErrorPrintingCallback(), scheduler_callback]
+    # Initialize callbacks
+    scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+    loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt)
+    callbacks = [loss_callback, scheduler_callback]
+
+    # Train model
     model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
             shuffle=False, verbose=0, callbacks=callbacks)
-    
+## PyTorch
 else:
-    # Initialize model, optimizer, and data loader as before
+    train_inputs = torch.from_numpy(train_data[:, :2]).float()
+    train_targets = torch.from_numpy(train_data[:, -1:]).float()
+    train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
+
+    # Initialize model, optimizer, and data loader
     model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     train_loader = torch.utils.data.DataLoader(

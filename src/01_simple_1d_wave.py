@@ -2,17 +2,9 @@ import numpy as np
 import contextlib
 from matplotlib import pyplot as plt
 import os
-
-USE_TENSORFLOW = True
-
-if USE_TENSORFLOW:
-    import tensorflow as tf
-    import nif.tf as nif
-    from nif.tf.optimizers import centralized_gradients_for_optimizer
-else:
-    import torch
-    import nif.torch as nif
-    from nif.torch.optimizers import centralized_gradients_for_optimizer
+import tensorflow as tf
+import nif.tf as nif
+from nif.tf.optimizers import centralized_gradients_for_optimizer
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -94,64 +86,29 @@ train_data = tw.data
 num_total_data = train_data.shape[0]
 
 
-## TensorFlow
-if USE_TENSORFLOW:
-    train_inputs = train_data[:, :2]
-    train_targets = train_data[:, -1:]
-    train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
-    train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+train_inputs = train_data[:, :2]
+train_targets = train_data[:, -1:]
+train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
+train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
-    cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
-    with cm:
-        optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
-        optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
+with cm:
+    optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
+    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
-        model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-        model_opt = model_ori.build()
+    model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    model_opt = model_ori.build()
 
-        model_opt.compile(optimizer, loss='mse')
+    model_opt.compile(optimizer, loss='mse')
 
-    # Create directory for saved weights if it doesn't exist
-    os.makedirs('./saved_weights', exist_ok=True)
+# Create directory for saved weights if it doesn't exist
+os.makedirs('./saved_weights', exist_ok=True)
 
-    # Initialize callbacks
-    scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-    loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
-    callbacks = [loss_callback, scheduler_callback]
+# Initialize callbacks
+scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+callbacks = [loss_callback, scheduler_callback]
 
-    # Train model
-    model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
-            shuffle=False, verbose=0, callbacks=callbacks)
-## PyTorch
-else:
-    train_inputs = torch.from_numpy(train_data[:, :2]).float()
-    train_targets = torch.from_numpy(train_data[:, -1:]).float()
-    train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
-
-    # Initialize model, optimizer, and data loader
-    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=0,
-        pin_memory=True
-    )
-
-    # Create logger
-    logger = nif.TrainingLogger(
-        display_epoch=100,
-        print_figure_epoch=100,
-        checkpt_epoch=1000,
-        n_epochs=nepoch
-    )
-
-    # Train model
-    history = nif.train_model(
-        model=model,
-        train_loader=train_loader,
-        optimizer=optimizer,
-        n_epochs=nepoch,
-        logger=logger
-    )
+# Train model
+model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
+        shuffle=False, verbose=0, callbacks=callbacks)

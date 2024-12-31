@@ -1,14 +1,24 @@
-import tensorflow as tf
 import numpy as np
-import time
-import logging
 import contextlib
 from matplotlib import pyplot as plt
-from mpl_toolkits import mplot3d
 import os
 
-import nif.tf as nif
-from nif.tf.optimizers import centralized_gradients_for_optimizer
+USE_TENSORFLOW = True
+
+if USE_TENSORFLOW:
+    import tensorflow as tf
+    import nif.tf as nif
+    from nif.tf.optimizers import centralized_gradients_for_optimizer
+else:
+    import torch
+    import nif.torch as nif
+    from nif.torch.optimizers import centralized_gradients_for_optimizer
+
+enable_multi_gpu = False
+enable_mixed_precision = False
+nepoch = 5000
+lr = 5e-3
+batch_size = 512
 
 NT=10 # 20
 NX=200
@@ -58,22 +68,6 @@ cfg_parameter_net = {
     "nlayers": 2,
     "activation": 'swish',
 }
-enable_multi_gpu = False
-enable_mixed_precision = False
-nepoch = 5000
-lr = 5e-3
-batch_size = 512
-checkpt_epoch = 1000
-display_epoch = 100
-print_figure_epoch = 100
-
-from nif.tf.demo import TravelingWave
-tw = TravelingWave()
-train_data = tw.data
-
-num_total_data = train_data.shape[0]
-train_dataset = tf.data.Dataset.from_tensor_slices((train_data[:, :2], train_data[:, -1:]))
-train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
 if enable_mixed_precision:
     mixed_policy = "mixed_float16"
@@ -82,53 +76,6 @@ if enable_mixed_precision:
     nif.mixed_precision.set_global_policy(policy)
 else:
     mixed_policy = 'float32'
-
-class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
-    def on_train_begin(self, logs=None):
-        self.train_begin_time = time.time()
-        self.history_loss = []
-        logging.basicConfig(filename='./log', level=logging.INFO, format='%(message)s')
-
-    def on_epoch_begin(self, epoch, logs=None):
-        self.ts = time.time()
-
-    def on_epoch_end(self, epoch, logs=None):
-        if epoch % display_epoch == 0:
-            tnow = time.time()
-            te = tnow - self.ts
-            logging.info("Epoch {:6d}: avg.loss pe = {:4.3e}, {:d} points/sec, time elapsed = {:4.3f} hours".format(
-                epoch, logs['loss'], int(batch_size / te), (tnow - self.train_begin_time) / 3600.0))
-            self.history_loss.append(logs['loss'])
-        if epoch % print_figure_epoch == 0:
-            plt.figure()
-            plt.semilogy(self.history_loss)
-            plt.xlabel('epoch: per {} epochs'.format(print_figure_epoch))
-            plt.ylabel('MSE loss')
-            plt.savefig('./loss.png')
-            plt.close()
-
-            u_pred = self.model.predict(train_data[:,0:2]).reshape(10,200)
-            fig,axs=plt.subplots(1,3,figsize=(16,4))
-            im1=axs[0].contourf(tt, xx, train_data[:,-1].reshape(10,200),vmin=-5,vmax=5,levels=50,cmap='seismic')
-            plt.colorbar(im1,ax=axs[0])
-
-            im2=axs[1].contourf(tt, xx, u_pred,vmin=-5,vmax=5,levels=50,cmap='seismic')
-            plt.colorbar(im2,ax=axs[1])
-
-            im3=axs[2].contourf(tt, xx, (u_pred-train_data[:,-1].reshape(10,200)),vmin=-5,vmax=5,levels=50,cmap='seismic')
-            plt.colorbar(im3,ax=axs[2])
-
-            axs[0].set_xlabel('t')
-            axs[0].set_ylabel('x')
-            axs[0].set_title('true')
-            axs[1].set_title('pred')
-            axs[2].set_title('error')
-            plt.savefig('vis.png')
-            plt.close()
-
-        if epoch % checkpt_epoch == 0 or epoch == nepoch - 1:
-            print('save checkpoint epoch: %d...' % epoch)
-            self.model.save_weights("./saved_weights/ckpt-{}.weights.h5".format(epoch))
 
 def scheduler(epoch, lr):
     if epoch < 1000:
@@ -139,25 +86,72 @@ def scheduler(epoch, lr):
         return 5e-4
     else:
         return 1e-4
-        
-scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
-cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
-with cm:
-    optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
-    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+from nif.data import TravelingWave
+tw = TravelingWave()
+train_data = tw.data
 
-    model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model_opt = model_ori.build()
+num_total_data = train_data.shape[0]
 
-    model_opt.compile(optimizer, loss='mse')
 
-# Create directory for saved weights if it doesn't exist
-os.makedirs('./saved_weights', exist_ok=True)
+## TensorFlow
+if USE_TENSORFLOW:
+    train_inputs = train_data[:, :2]
+    train_targets = train_data[:, -1:]
+    train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
+    train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
-# callbacks = []
-callbacks = [LossAndErrorPrintingCallback(), scheduler_callback]
-# callbacks = [tensorboard_callback, ]
-# callbacks = [tensorboard_callback, LossAndErrorPrintingCallback(), scheduler_callback]
-model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
-          shuffle=False, verbose=0, callbacks=callbacks)
+    cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
+    with cm:
+        optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
+        optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+
+        model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+        model_opt = model_ori.build()
+
+        model_opt.compile(optimizer, loss='mse')
+
+    # Create directory for saved weights if it doesn't exist
+    os.makedirs('./saved_weights', exist_ok=True)
+
+    # Initialize callbacks
+    scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+    loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+    callbacks = [loss_callback, scheduler_callback]
+
+    # Train model
+    model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
+            shuffle=False, verbose=0, callbacks=callbacks)
+## PyTorch
+else:
+    train_inputs = torch.from_numpy(train_data[:, :2]).float()
+    train_targets = torch.from_numpy(train_data[:, -1:]).float()
+    train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
+
+    # Initialize model, optimizer, and data loader
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=True
+    )
+
+    # Create logger
+    logger = nif.TrainingLogger(
+        display_epoch=100,
+        print_figure_epoch=100,
+        checkpt_epoch=1000,
+        n_epochs=nepoch
+    )
+
+    # Train model
+    history = nif.train_model(
+        model=model,
+        train_loader=train_loader,
+        optimizer=optimizer,
+        n_epochs=nepoch,
+        logger=logger
+    )

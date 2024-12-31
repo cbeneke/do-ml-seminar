@@ -2,9 +2,8 @@ import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
 from .__about__ import __version__
-from nif.tf import data
-from nif.tf import demo
 from nif.tf import optimizers
+from nif.tf import utils
 from nif.tf.model import NIF
 from nif.tf.model import NIFMultiScale
 from nif.tf.model import NIFMultiScaleLastLayerParameterized
@@ -17,12 +16,10 @@ if len(gpus) > 0:
     print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
 
 __all__ = [
-    "data",
-    "tf",
     "NIFMultiScale",
     "NIFMultiScaleLastLayerParameterized",
     "NIF",
     "mixed_precision",
     "optimizers",
-    "demo",
+    "utils",
 ]

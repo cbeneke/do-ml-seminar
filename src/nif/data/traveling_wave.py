@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-from nif.tf.data.point_wise_data import PointWiseData
+from nif.data.point_wise_data import PointWiseData
 
 
 class TravelingWave(PointWiseData):
@@ -27,8 +27,8 @@ class TravelingWave(PointWiseData):
         the `mean` and `std` attributes, respectively.
         """
         path = os.path.abspath(__file__)
-        dir_path = os.path.dirname(path)
-        data = np.load(dir_path + "/dataset/traveling_wave.npz")["data"]
+        base_path = os.path.dirname(os.path.dirname(path))
+        data = np.load(base_path + "/dataset/traveling_wave.npz")["data"]
         parameter_data = data[:, [0]]
         x_data = data[:, [1]]
         u_data = data[:, [2]]

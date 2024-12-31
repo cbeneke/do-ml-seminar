@@ -3,7 +3,7 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 
-USE_TENSORFLOW = False
+USE_TENSORFLOW = True
 
 if USE_TENSORFLOW:
     import tensorflow as tf
@@ -116,7 +116,7 @@ if USE_TENSORFLOW:
 
     # Initialize callbacks
     scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-    loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt)
+    loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
     callbacks = [loss_callback, scheduler_callback]
 
     # Train model
@@ -132,7 +132,7 @@ else:
     model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, 
+        train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=0,

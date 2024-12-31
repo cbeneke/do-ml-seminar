@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 
 class NIF(nn.Module):

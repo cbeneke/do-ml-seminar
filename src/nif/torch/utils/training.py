@@ -39,7 +39,7 @@ class TrainingLogger:
     
     def on_epoch_begin(self):
         """Call at the beginning of each epoch"""
-        self.ts = time.time()
+        self.time_start = time.time()
     
     def on_epoch_end(self, epoch: int, loss: float, model: torch.nn.Module,
                     train_data: torch.Tensor, batch_size: int):
@@ -55,10 +55,10 @@ class TrainingLogger:
         """
         if epoch % self.display_epoch == 0:
             tnow = time.time()
-            te = tnow - self.ts
+            time_end = tnow - self.time_start
             logging.info(
                 f"Epoch {epoch:6d}: avg.loss pe = {loss:4.3e}, "
-                f"{int(batch_size / te):d} points/sec, "
+                f"{int(batch_size / time_end):d} points/sec, "
                 f"time elapsed = {(tnow - self.train_begin_time) / 3600.0:4.3f} hours"
             )
             self.history_loss.append(loss)
@@ -85,7 +85,7 @@ class TrainingLogger:
             xx = np.linspace(0, 1, 200)
             tt, xx = np.meshgrid(tt, xx, indexing='ij')
             
-            fig, axs = plt.subplots(1, 3, figsize=(16, 4))
+            _, axs = plt.subplots(1, 3, figsize=(16, 4))
             
             im1 = axs[0].contourf(tt, xx, u_true, vmin=-5, vmax=5, levels=50, cmap='seismic')
             plt.colorbar(im1, ax=axs[0])
@@ -145,7 +145,7 @@ def train_model(
         # Training loop
         model.train()
         total_loss = 0
-        for batch_idx, (inputs, targets) in enumerate(train_loader):
+        for _, (inputs, targets) in enumerate(train_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             
             optimizer.zero_grad()

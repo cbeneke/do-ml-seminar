@@ -11,12 +11,14 @@ checkpt_epoch = 1000
 
 
 class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
-    def __init__(self, nepoch, train_data, xx, tt):
+    def __init__(self, nepoch, train_data, xx, tt, NT, NX):
         super().__init__()
         self.train_data = train_data
         self.xx = xx 
         self.tt = tt
         self.nepoch = nepoch
+        self.NT = NT
+        self.NX = NX
 
     def on_train_begin(self, logs=None):
         self.train_begin_time = time.time()
@@ -41,15 +43,15 @@ class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
             plt.savefig('./loss.png')
             plt.close()
 
-            u_pred = self.model.predict(self.train_data[:,0:2]).reshape(10,200)
+            u_pred = self.model.predict(self.train_data[:,0:2]).reshape(self.NT,self.NX)
             fig,axs=plt.subplots(1,3,figsize=(16,4))
-            im1=axs[0].contourf(self.tt, self.xx, self.train_data[:,-1].reshape(10,200),vmin=-5,vmax=5,levels=50,cmap='seismic')
+            im1=axs[0].contourf(self.tt, self.xx, self.train_data[:,-1].reshape(self.NT,self.NX),vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im1,ax=axs[0])
 
             im2=axs[1].contourf(self.tt, self.xx, u_pred,vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im2,ax=axs[1])
 
-            im3=axs[2].contourf(self.tt, self.xx, (u_pred-self.train_data[:,-1].reshape(10,200)),vmin=-5,vmax=5,levels=50,cmap='seismic')
+            im3=axs[2].contourf(self.tt, self.xx, (u_pred-self.train_data[:,-1].reshape(self.NT,self.NX)),vmin=-5,vmax=5,levels=50,cmap='seismic')
             plt.colorbar(im3,ax=axs[2])
 
             axs[0].set_xlabel('t')

@@ -3,8 +3,8 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.tf as nif
-from nif.tf.optimizers import centralized_gradients_for_optimizer
+import nif.tf_v2 as model
+from nif.tf import optimizers, utils
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -64,8 +64,8 @@ cfg_parameter_net = {
 if enable_mixed_precision:
     mixed_policy = "mixed_float16"
     # we might need this for `model.fit` to automatically do loss scaling
-    policy = nif.mixed_precision.Policy(mixed_policy)
-    nif.mixed_precision.set_global_policy(policy)
+    policy = model.mixed_precision.Policy(mixed_policy)
+    model.mixed_precision.set_global_policy(policy)
 else:
     mixed_policy = 'float32'
 
@@ -93,10 +93,10 @@ train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch
 
 cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
 with cm:
-    optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
-    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+    optimizer = optimizers.AdaBeliefOptimizer(lr)
+    optimizer.get_gradients = optimizers.centralized_gradients_for_optimizer(optimizer)
 
-    model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    model_ori = model.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
     model_opt = model_ori.build()
 
     model_opt.compile(optimizer, loss='mse')
@@ -106,7 +106,7 @@ os.makedirs('./saved_weights', exist_ok=True)
 
 # Initialize callbacks
 scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
 callbacks = [loss_callback, scheduler_callback]
 
 # Train model

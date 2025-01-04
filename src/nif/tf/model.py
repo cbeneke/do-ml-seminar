@@ -380,7 +380,7 @@ class NIF(object):
             tf.keras.Model: The NIF model.
         """
         input_tot = tf.keras.layers.Input(
-            shape=(self.pi_dim + self.si_dim), name="input_tot"
+            shape=(self.pi_dim + self.si_dim,), name="input_tot"
         )
         return Model(inputs=[input_tot], outputs=[self.call(input_tot)])
 

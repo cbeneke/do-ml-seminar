@@ -13,9 +13,7 @@ class ResNet(tf.keras.layers.Layer):
         self.bias_regularizer = bias_regularizer
         self.dtype = dtype
 
-    def call(self, inputs):
-        x = inputs
-        y = tf.keras.layers.Dense(
+        self.dense_activation = tf.keras.layers.Dense(
             self.units,
             activation=self.activation,
             kernel_initializer=self.kernel_initializer,
@@ -23,8 +21,9 @@ class ResNet(tf.keras.layers.Layer):
             kernel_regularizer=self.kernel_regularizer,
             bias_regularizer=self.bias_regularizer,
             dtype=self.dtype,
-        )(x)
-        y = tf.keras.layers.Dense(
+        )
+
+        self.dense_no_activation = tf.keras.layers.Dense(
             self.units,
             activation=None,
             kernel_initializer=self.kernel_initializer,
@@ -32,6 +31,12 @@ class ResNet(tf.keras.layers.Layer):
             kernel_regularizer=self.kernel_regularizer,
             bias_regularizer=self.bias_regularizer,
             dtype=self.dtype,
-        )(y)
-        output = self.activation(tf.keras.layers.add([x, y]))
+        )
+
+    def call(self, inputs):
+        x = self.dense_activation(inputs)
+        x = self.dense_no_activation(x)
+        output = self.activation(tf.keras.layers.add([inputs, x]))
         return output
+
+

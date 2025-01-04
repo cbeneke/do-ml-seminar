@@ -12,9 +12,7 @@ class Shortcut(tf.keras.layers.Layer):
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
 
-    def call(self, inputs):
-        x = inputs
-        y = tf.keras.layers.Dense(
+        self.dense = tf.keras.layers.Dense(
             self.units,
             activation=self.activation,
             kernel_initializer=self.kernel_initializer,
@@ -22,6 +20,9 @@ class Shortcut(tf.keras.layers.Layer):
             kernel_regularizer=self.kernel_regularizer,
             bias_regularizer=self.bias_regularizer,
             dtype=self.dtype,
-        )(x)
-        output = tf.keras.layers.add([x, y])
+        )
+
+    def call(self, inputs):
+        x = self.dense(inputs)
+        output = tf.keras.layers.add([inputs, x])
         return output

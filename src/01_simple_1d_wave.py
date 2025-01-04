@@ -3,7 +3,7 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.tf as nif
+import nif.tf_v2 as nif
 from nif.tf.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
 from nif.tf import utils
 
@@ -98,8 +98,7 @@ with cm:
     optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
     model = nif.NIF(cfg_shape_net, cfg_parameter_net)
-    #model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"]))
-    model = model.build()
+    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
     tf.keras.utils.plot_model(model, "model.png", show_shapes=True)
 
     model.compile(optimizer, loss='mse')

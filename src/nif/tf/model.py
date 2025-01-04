@@ -338,7 +338,8 @@ class NIF(object):
         output_final = pnet_list[-1](latent)
         return output_final, latent
 
-    def build(self):
+    # The functional API expects input_shape as parameter, which we don't use here
+    def build(self, input_shape):
         """
         Builds and returns the NIF model with a Jacobian regularization layer
         if specified in the configuration. Otherwise it is the same as `.model()`

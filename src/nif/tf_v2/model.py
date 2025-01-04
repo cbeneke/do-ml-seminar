@@ -5,8 +5,8 @@ from nif.tf_v2.layers.resnet import ResNet
 from nif.tf_v2.layers.static_dense import StaticDense
 
 class NIF(tf.keras.Model):
-    def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy="float32"):
-        super().__init__()
+    def __init__(self, cfg_shape_net, cfg_parameter_net, dtype="float32"):
+        super().__init__(dtype=dtype)
 
         # Store the config
         self.cfg_shape_net = cfg_shape_net
@@ -32,24 +32,26 @@ class NIF(tf.keras.Model):
         else:
             self.pnet_act_regularizer = None
 
-        # Build the networks
+        # Build parameter net
         self.parameter_net = self._build_parameter_net(
-            cfg_parameter_net,
-            cfg_shape_net,
-            mixed_policy,
+            self.cfg_parameter_net,
+            self.cfg_shape_net,
+            self.dtype,
             self.pnet_kernel_regularizer,
             self.pnet_bias_regularizer,
             self.pnet_act_regularizer,
         )
-        self.shape_net = self._build_shape_net(cfg_shape_net, mixed_policy)
+
+        # Build shape net
+        # self.shape_net = self._build_shape_net(
+        #     self.cfg_parameter_net,
+        #     self.cfg_shape_net,
+        #     self.dtype,
+        # )
 
     @staticmethod
-    def _build_parameter_net(cfg_parameter_net, cfg_shape_net, mixed_policy, kernel_regularizer, bias_regularizer, activity_regularizer) -> tf.keras.Model:
-        output_dim = (
-            cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2  # Each hidden layer has a units*units weight matrix
-            + (cfg_parameter_net["input_dim"] + cfg_shape_net["output_dim"] + 1 + cfg_shape_net["nlayers"]) * cfg_shape_net["units"]  # First layer + hidden layers + output layer have "units" biases
-            + cfg_shape_net["output_dim"]  # Output layer has "output_dim" weights
-        )
+    def _build_parameter_net(cfg_parameter_net, cfg_shape_net, dtype, kernel_regularizer, bias_regularizer, activity_regularizer) -> tf.keras.Model:
+        output_dim = NIF._get_parameter_net_output_dim(cfg_shape_net, cfg_parameter_net)
         model = tf.keras.Sequential()
 
         # First Layer
@@ -60,7 +62,7 @@ class NIF(tf.keras.Model):
             bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
-            dtype=mixed_policy,
+            dtype=dtype,
         ))
 
         # Hidden Layers - ResNet or Shortcut based on config
@@ -73,7 +75,7 @@ class NIF(tf.keras.Model):
                 bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
                 kernel_regularizer=kernel_regularizer,
                 bias_regularizer=bias_regularizer,
-                mixed_policy=mixed_policy,
+                dtype=dtype,
             ))
         
         # Last Layer with additional activation regularizer
@@ -84,26 +86,29 @@ class NIF(tf.keras.Model):
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
             activity_regularizer=activity_regularizer,
-            dtype=mixed_policy,
+            dtype=dtype,
         ))
         return model
 
     @staticmethod
-    def _build_shape_net(cfg_shape_net, mixed_policy) -> tf.keras.Model:
-        model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Input(shape=1))
+    def _build_shape_net(cfg_parameter_net, cfg_shape_net, dtype) -> tf.keras.Model:
+        inputs = tf.keras.Input(
+            shape=(cfg_shape_net["input_dim"] + NIF._get_parameter_net_output_dim(cfg_shape_net, cfg_parameter_net),),
+            dtype=dtype,
+        )
 
-        # First layer -- 0 : si_dim * n_sx
-        model.add(StaticDense(
+        # First layer -- input_dim -> units fully connected
+        x = StaticDense(
             units=cfg_shape_net["units"],
             activation=cfg_shape_net["activation"],
             weights_indexes=[0, cfg_shape_net["input_dim"] * cfg_shape_net["units"]],
             biases_indexes=[0, cfg_shape_net["units"]],
-            dtype=mixed_policy,
-        ))
-        # Hidden layers -- si_dim * n_sx + i * n_sx**2 : si_dim * n_sx + (i + 1) * n_sx**2
+            input_dim=cfg_shape_net["input_dim"],
+            dtype=dtype,
+        )(inputs)
         for i in range(cfg_shape_net["nlayers"]):
-            model.add(StaticDense(
+            # Hidden layer -- units -> units fully connected
+            x = StaticDense(
                 units=cfg_shape_net["units"],
                 activation=cfg_shape_net["activation"],
                 weights_indexes=[
@@ -111,13 +116,14 @@ class NIF(tf.keras.Model):
                     cfg_shape_net["input_dim"] * cfg_shape_net["units"] + (i + 1) * cfg_shape_net["units"]**2
                 ],
                 biases_indexes=[
-                    i * cfg_shape_net["units"],
-                    (i+1) * cfg_shape_net["units"]
+                    (i+1) * cfg_shape_net["units"],
+                    (i+2) * cfg_shape_net["units"]
                 ],
-                dtype=mixed_policy,
-            ))
-        # Last layer -- si_dim * n_sx + l_sx * n_sx**2 : si_dim * n_sx + l_sx * n_sx**2 + so_dim * n_sx
-        model.add(StaticDense(
+                input_dim=cfg_shape_net["units"],
+                dtype=dtype,
+            )(x)
+        # Last layer -- units -> output_dim fully connected
+        outputs = StaticDense(
             units=cfg_shape_net["output_dim"],
             activation=cfg_shape_net["activation"],
             weights_indexes=[
@@ -128,18 +134,29 @@ class NIF(tf.keras.Model):
                 cfg_shape_net["nlayers"] * cfg_shape_net["units"],
                 cfg_shape_net["nlayers"] * cfg_shape_net["units"] + cfg_shape_net["output_dim"]
             ],
-            dtype=mixed_policy,
-        ))
+            input_dim=cfg_shape_net["units"],
+            dtype=dtype,
+        )(x)
+        model = tf.keras.Model(inputs, outputs)
+        model.summary()
         return model
 
-    def call(self, inputs, training=None, mask=None):
-        inputs_parameter = inputs[:, :self.cfg_parameter_net["input_dim"]]
-        inputs_x = inputs[:, self.cfg_parameter_net["input_dim"]:]
+    @staticmethod
+    def _get_parameter_net_output_dim(cfg_shape_net, cfg_parameter_net):
+        return (
+            cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2  # Each hidden layer has a units*units weight matrix
+            + (cfg_parameter_net["input_dim"] + cfg_shape_net["output_dim"] + 1 + cfg_shape_net["nlayers"]) * cfg_shape_net["units"]  # First layer + hidden layers + output layer have "units" biases
+            + cfg_shape_net["output_dim"]  # Output layer has "output_dim" weights
+        )
 
-        parameter_net_output = self.parameter_net(inputs_parameter, training=training)
-        split_idx = self.cfg_shape_net["input_dim"] * self.cfg_shape_net["units"] + self.cfg_shape_net["l_sx"] * self.cfg_shape_net["units"]**2 + self.cfg_shape_net["output_dim"] * self.cfg_shape_net["units"]
-        weights = parameter_net_output[:, :split_idx]
-        biases = parameter_net_output[:, split_idx:]
-        shape_net_output = self.shape_net([inputs_x, weights, biases])
-        
-        return shape_net_output[0]
+    def call(self, inputs, training=None, mask=None):
+        # Split input into parameter net and shape net inputs
+        parameter_net_input = inputs[:, :self.cfg_parameter_net["input_dim"]]
+        shape_net_input = inputs[:, self.cfg_parameter_net["input_dim"]:]
+
+        parameters = self.parameter_net(parameter_net_input)
+        # x = tf.concat([shape_net_input, parameters], axis=1)
+        # x = self.shape_net(x)
+        # output = x[:, :self.cfg_shape_net["output_dim"]]
+
+        return parameters

@@ -3,8 +3,9 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.tf_v2 as model
-from nif.tf import optimizers, utils
+import nif.tf as nif
+from nif.tf.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
+from nif.tf import utils
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -64,8 +65,8 @@ cfg_parameter_net = {
 if enable_mixed_precision:
     mixed_policy = "mixed_float16"
     # we might need this for `model.fit` to automatically do loss scaling
-    policy = model.mixed_precision.Policy(mixed_policy)
-    model.mixed_precision.set_global_policy(policy)
+    policy = nif.mixed_precision.Policy(mixed_policy)
+    nif.mixed_precision.set_global_policy(policy)
 else:
     mixed_policy = 'float32'
 
@@ -93,13 +94,15 @@ train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch
 
 cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
 with cm:
-    optimizer = optimizers.AdaBeliefOptimizer(lr)
-    optimizer.get_gradients = optimizers.centralized_gradients_for_optimizer(optimizer)
+    optimizer = AdaBeliefOptimizer(lr)
+    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
-    model_ori = model.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model_opt = model_ori.build()
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net)
+    #model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"]))
+    model = model.build()
+    tf.keras.utils.plot_model(model, "model.png", show_shapes=True)
 
-    model_opt.compile(optimizer, loss='mse')
+    model.compile(optimizer, loss='mse')
 
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)
@@ -110,5 +113,5 @@ loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, N
 callbacks = [loss_callback, scheduler_callback]
 
 # Train model
-model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
+model.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
         shuffle=False, verbose=0, callbacks=callbacks)

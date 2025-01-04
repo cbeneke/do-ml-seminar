@@ -3,7 +3,7 @@
 import tensorflow as tf
 
 class ResNet(tf.keras.layers.Layer):
-    def __init__(self, units, activation, kernel_initializer, bias_initializer, kernel_regularizer, bias_regularizer, mixed_policy, **kwargs):
+    def __init__(self, units, activation, kernel_initializer, bias_initializer, kernel_regularizer, bias_regularizer, dtype, **kwargs):
         super().__init__(**kwargs)
         self.units = units
         self.activation = activation
@@ -11,7 +11,7 @@ class ResNet(tf.keras.layers.Layer):
         self.bias_initializer = bias_initializer
         self.kernel_regularizer = kernel_regularizer
         self.bias_regularizer = bias_regularizer
-        self.mixed_policy = mixed_policy
+        self.dtype = dtype
 
     def call(self, inputs):
         x = inputs
@@ -22,7 +22,7 @@ class ResNet(tf.keras.layers.Layer):
             bias_initializer=self.bias_initializer,
             kernel_regularizer=self.kernel_regularizer,
             bias_regularizer=self.bias_regularizer,
-            dtype=self.mixed_policy,
+            dtype=self.dtype,
         )(x)
         y = tf.keras.layers.Dense(
             self.units,
@@ -31,7 +31,7 @@ class ResNet(tf.keras.layers.Layer):
             bias_initializer=self.bias_initializer,
             kernel_regularizer=self.kernel_regularizer,
             bias_regularizer=self.bias_regularizer,
-            dtype=self.mixed_policy,
+            dtype=self.dtype,
         )(y)
         output = self.activation(tf.keras.layers.add([x, y]))
         return output

@@ -97,7 +97,7 @@ with cm:
     optimizer = AdaBeliefOptimizer(lr)
     optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
-    model = nif.NIF(cfg_shape_net, cfg_parameter_net)
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
     model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
 
     model.summary()

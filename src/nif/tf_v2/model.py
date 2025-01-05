@@ -115,9 +115,10 @@ class NIF(tf.keras.Model):
         layers.append(StaticDense(
             name="first_snet",
             units=cfg_shape_net["units"],
-            cfg_shape_net=cfg_shape_net,
+            activation=tf.keras.activations.get(cfg_shape_net["activation"]),
             weights_from=0,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"],
+            bias_offset=utils.get_weights_dim(cfg_shape_net),
             biases_from=0,
             biases_to=cfg_shape_net["units"],
         ))
@@ -127,9 +128,10 @@ class NIF(tf.keras.Model):
             layers.append(StaticDense(
                 name=f"hidden_snet_{i}",
                 units=cfg_shape_net["units"],
-                cfg_shape_net=cfg_shape_net,
+                activation=tf.keras.activations.get(cfg_shape_net["activation"]),
                 weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + i * cfg_shape_net["units"]**2,
                 weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + (i + 1) * cfg_shape_net["units"]**2,
+                bias_offset=utils.get_weights_dim(cfg_shape_net),
                 biases_from=(i+1) * cfg_shape_net["units"],
                 biases_to=(i+2) * cfg_shape_net["units"],
             ))
@@ -137,7 +139,7 @@ class NIF(tf.keras.Model):
         layers.append(StaticDense(
             name="last_snet",
             units=cfg_shape_net["output_dim"],
-            cfg_shape_net=cfg_shape_net,
+            activation=None,
             weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2 + cfg_shape_net["output_dim"] * cfg_shape_net["units"],
             biases_from=cfg_shape_net["nlayers"] * cfg_shape_net["units"],
@@ -171,8 +173,7 @@ class NIF(tf.keras.Model):
         # Call shape net
         shape_net_output = inputs[:, self.cfg_parameter_net["input_dim"]:]
         for layer in self.shape_net_layers:
-            layer.pass_parameters(parameter_net_output)
-            shape_net_output = layer(shape_net_output, training=False)
+            shape_net_output = layer([shape_net_output, parameter_net_output], training=False)
 
         return shape_net_output
     

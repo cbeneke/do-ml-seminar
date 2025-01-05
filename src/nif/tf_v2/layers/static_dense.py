@@ -4,46 +4,44 @@ import tensorflow as tf
 from nif.tf_v2 import utils
 
 class StaticDense(tf.keras.Layer):
-    def __init__(self, units, cfg_shape_net, weights_from, weights_to, biases_from, biases_to, **kwargs):
+    def __init__(self, units, activation, weights_from, weights_to, bias_offset, biases_from, biases_to, **kwargs):
         super().__init__(**kwargs)
 
         self.units = units
-        self.activation = tf.keras.activations.get(cfg_shape_net["activation"])
+        self.activation = activation
 
         self.weights_from = weights_from
         self.weights_to = weights_to
 
-        self.biases_from = utils.get_weights_dim(cfg_shape_net) + biases_from
-        self.biases_to = utils.get_weights_dim(cfg_shape_net) + biases_to
+        self.biases_from = bias_offset + biases_from
+        self.biases_to = bias_offset + biases_to
 
         self.built = False
 
     def build(self, input_shape):
         self._input_dim = input_shape[-1]
-        self._weights = None
-        self._biases = None
 
         self.built = True
 
-    def pass_parameters(self, parameters):
+    @tf.function
+    def _parse_parameters(self, parameters):
         assert self.built, "Layer is not built"
 
         weights = parameters[:, self.weights_from:self.weights_to]
         weights = tf.reshape(weights, (-1, self._input_dim, self.units))
-        self._weights = weights
 
         biases = parameters[:, self.biases_from:self.biases_to]
         biases = tf.reshape(biases, (-1, self.units))
-        self._biases = biases
 
+        return weights, biases
+
+    @tf.function
     def call(self, inputs):
-        if self._weights is None or self._biases is None:
-            raise AttributeError(
-                "You must pass parameters before calling the layer."
-            )
+        inputs, parameters = inputs
+        weights, biases = self._parse_parameters(parameters)
 
-        x = tf.einsum("ai,aij->aj", inputs, self._weights)
-        x = tf.add(x, self._biases)
+        x = tf.einsum("ai,aij->aj", inputs, weights)
+        x = tf.add(x, biases)
         if self.activation is not None:
             x = self.activation(x)
         return x

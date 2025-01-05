@@ -1,52 +1,22 @@
-import numpy as np
 import contextlib
-from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
 from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
-from nif.upstream import utils
+from nif import base
 
 #NIF_IMPLEMENTATION="upstream"
 NIF_IMPLEMENTATION="functional"
 
-enable_multi_gpu = False
-enable_mixed_precision = False
-nepoch = 5000
-lr = 5e-3
-batch_size = 512
+enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, checkpt_epoch, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
+u, x, t, x0, c, omega, xx, tt = base.setup_example_base(NT, NX)
+dudx_1d, dudt_1d = base.get_derivative_data(x0, c, omega, xx, tt)
 
-NT=10 # 20
-NX=200
-
-x = np.linspace(0,1,NX,endpoint=False)
-t = np.linspace(0,100,NT,endpoint=False)
-
-xx,tt=np.meshgrid(x,t)
-
-omega = 4
-c = 0.12/20
-x0 = 0.2
-
-u = np.exp(-1000*(xx-x0-c*tt)**2)*np.sin(omega*(xx-x0-c*tt))
-
-# vis
-plt.figure()
-for i in range(NT):
-    plt.plot(x,u[i,:],'-',label=str(i) + '-th time')
-
-plt.xlabel('$x$',fontsize=25)
-plt.ylabel('$u$',fontsize=25)
-
-# vis iso
-plt.figure(figsize=(4,4))
-ax = plt.axes(projection='3d')
-ax.plot_surface(xx,tt,u,cmap="rainbow", lw=2)#,rstride=1, cstride=1)
-ax.view_init(57, -80)
-ax.set_xlabel(r'$x$',fontsize=25)
-ax.set_ylabel(r'$t$',fontsize=25)
-ax.set_zlabel(r'$u$',fontsize=25)
-
-plt.tight_layout()
+######
+# Setup for basic NIF
+if NIF_IMPLEMENTATION == "upstream":
+    import nif.upstream as nif
+elif NIF_IMPLEMENTATION == "functional":
+    import nif.functional as nif
 
 cfg_shape_net = {
     "connectivity": 'full',
@@ -72,21 +42,6 @@ if enable_mixed_precision:
 else:
     mixed_policy = 'float32'
 
-def scheduler(epoch, lr):
-    if epoch < 1000:
-        return lr
-    elif epoch < 2000:
-        return 1e-3
-    elif epoch < 4000:
-        return 5e-4
-    else:
-        return 1e-4
-
-if NIF_IMPLEMENTATION == "upstream":
-    import nif.upstream as nif
-elif NIF_IMPLEMENTATION == "functional":
-    import nif.functional as nif
-    
 from nif.data import TravelingWave
 tw = TravelingWave()
 train_data = tw.data
@@ -114,8 +69,8 @@ with cm:
 os.makedirs('./saved_weights', exist_ok=True)
 
 # Initialize callbacks
-scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+scheduler_callback = tf.keras.callbacks.LearningRateScheduler(base.scheduler)
+loss_callback = base.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
 callbacks = [loss_callback, scheduler_callback]
 
 # Train model

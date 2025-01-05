@@ -99,10 +99,9 @@ with cm:
 
     model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
     model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+    model.compile(optimizer, loss='mse')
 
     model.summary()
-
-    model.compile(optimizer, loss='mse')
 
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)

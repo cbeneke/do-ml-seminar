@@ -4,7 +4,7 @@ import tensorflow as tf
 
 class Shortcut(tf.keras.layers.Layer):
     def __init__(self, units, activation, kernel_initializer, bias_initializer, kernel_regularizer, bias_regularizer, dtype=None, **kwargs):
-        super().__init__(dtype=dtype, **kwargs)
+        super().__init__(**kwargs)
         self.dense = tf.keras.layers.Dense(
             units,
             use_bias=True,

@@ -1,9 +1,8 @@
 # StaticDense is a Layer that implements a dense layer with given weights and biases
 
 import tensorflow as tf
-from nif.tf_v2 import utils
 
-class StaticDense(tf.keras.Layer):
+class StaticDense(tf.keras.layers.Layer):
     def __init__(self, units, activation, weights_from, weights_to, bias_offset, biases_from, biases_to, **kwargs):
         super().__init__(**kwargs)
 
@@ -20,13 +19,10 @@ class StaticDense(tf.keras.Layer):
 
     def build(self, input_shape):
         self._input_dim = input_shape[-1]
-
         self.built = True
 
     @tf.function
     def _parse_parameters(self, parameters):
-        assert self.built, "Layer is not built"
-
         weights = parameters[:, self.weights_from:self.weights_to]
         weights = tf.reshape(weights, (-1, self._input_dim, self.units))
 
@@ -45,7 +41,6 @@ class StaticDense(tf.keras.Layer):
         if self.activation is not None:
             x = self.activation(x)
         return x
-
 
     def compute_output_shape(self, input_shape):
         output_shape = list(input_shape)

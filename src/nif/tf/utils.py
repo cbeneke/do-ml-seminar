@@ -62,6 +62,6 @@ class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
             plt.savefig('vis.png')
             plt.close()
 
-        # if epoch % checkpt_epoch == 0 or epoch == self.nepoch - 1:
-        #     print('save checkpoint epoch: %d...' % epoch)
-        #     self.model.save_weights("./saved_weights/ckpt-{}.weights.h5".format(epoch))
+        if epoch % checkpt_epoch == 0 or epoch == self.nepoch - 1:
+            print('save checkpoint epoch: %d...' % epoch)
+            self.model.save_weights("./saved_weights/ckpt-{}.weights.h5".format(epoch))

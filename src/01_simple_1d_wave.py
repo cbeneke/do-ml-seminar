@@ -3,9 +3,9 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.tf_v2 as nif
-from nif.tf.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
-from nif.tf import utils
+import nif.functional as nif
+from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
+from nif.upstream import utils
 
 enable_multi_gpu = False
 enable_mixed_precision = False

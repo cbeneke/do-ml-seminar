@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from nif.tf_v2.layers.shortcut import Shortcut
-from nif.tf_v2.layers.resnet import ResNet
-from nif.tf_v2.layers.static_dense import StaticDense
-from nif.tf_v2 import utils
+from nif.functional.layers.shortcut import Shortcut
+from nif.functional.layers.resnet import ResNet
+from nif.functional.layers.static_dense import StaticDense
+from nif.functional import utils
 
 class NIF(tf.keras.Model):
     def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy):

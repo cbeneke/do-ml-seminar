@@ -1,4 +1,4 @@
-import nif.tf as nif
+import nif.upstream as nif
 import tensorflow as tf
 
 

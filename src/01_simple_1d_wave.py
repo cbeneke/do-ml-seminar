@@ -99,7 +99,8 @@ with cm:
 
     model = nif.NIF(cfg_shape_net, cfg_parameter_net)
     model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
-    tf.keras.utils.plot_model(model, "model.png", show_shapes=True)
+
+    model.summary()
 
     model.compile(optimizer, loss='mse')
 

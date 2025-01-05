@@ -32,3 +32,7 @@ class StaticDense(tf.keras.layers.Layer):
 
         output = tf.concat([output, parameters], axis=1)
         return output
+    
+    def compute_output_shape(self, input_shape):
+        # Return shape as tuple with batch dimension
+        return (input_shape[0], self.units + input_shape[1] - self.input_dim)

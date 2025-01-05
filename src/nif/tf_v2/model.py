@@ -161,3 +161,20 @@ class NIF(tf.keras.Model):
         output = shape_net_output[:, :self.cfg_shape_net["output_dim"]]
 
         return output
+
+    def build(self, input_shape):
+        # Build parameter net layers
+        x_shape = (None, self.cfg_parameter_net["input_dim"])
+        for layer in self.parameter_net_layers:
+            layer.build(x_shape)
+            x_shape = layer.compute_output_shape(x_shape)
+
+        # Build shape net layers
+        # Input shape includes both original input and parameter net output
+        x_shape = (None, self.cfg_parameter_net["input_dim"] + self._get_parameter_net_output_dim(self.cfg_shape_net, self.cfg_parameter_net))
+        for layer in self.shape_net_layers:
+            layer.build(x_shape)
+            x_shape = layer.compute_output_shape(x_shape)
+
+        self.built = True
+        super().build(input_shape)

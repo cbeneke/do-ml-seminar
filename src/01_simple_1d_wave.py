@@ -3,9 +3,11 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.functional as nif
 from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
 from nif.upstream import utils
+
+#NIF_IMPLEMENTATION="upstream"
+NIF_IMPLEMENTATION="functional"
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -80,6 +82,11 @@ def scheduler(epoch, lr):
     else:
         return 1e-4
 
+if NIF_IMPLEMENTATION == "upstream":
+    import nif.upstream as nif
+elif NIF_IMPLEMENTATION == "functional":
+    import nif.functional as nif
+    
 from nif.data import TravelingWave
 tw = TravelingWave()
 train_data = tw.data

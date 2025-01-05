@@ -3,8 +3,11 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 import tensorflow as tf
-import nif.tf as nif
-from nif.tf.optimizers import centralized_gradients_for_optimizer
+from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
+from nif.upstream import utils
+
+#NIF_IMPLEMENTATION="upstream"
+NIF_IMPLEMENTATION="functional"
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -79,6 +82,11 @@ def scheduler(epoch, lr):
     else:
         return 1e-4
 
+if NIF_IMPLEMENTATION == "upstream":
+    import nif.upstream as nif
+elif NIF_IMPLEMENTATION == "functional":
+    import nif.functional as nif
+    
 from nif.data import TravelingWave
 tw = TravelingWave()
 train_data = tw.data
@@ -93,22 +101,23 @@ train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch
 
 cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
 with cm:
-    optimizer = nif.optimizers.AdaBeliefOptimizer(lr)
+    optimizer = AdaBeliefOptimizer(lr)
     optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
-    model_ori = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model_opt = model_ori.build()
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+    model.compile(optimizer, loss='mse')
 
-    model_opt.compile(optimizer, loss='mse')
+    model.summary()
 
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)
 
 # Initialize callbacks
 scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-loss_callback = nif.utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
 callbacks = [loss_callback, scheduler_callback]
 
 # Train model
-model_opt.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
+model.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
         shuffle=False, verbose=0, callbacks=callbacks)

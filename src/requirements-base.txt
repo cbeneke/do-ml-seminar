@@ -3,3 +3,5 @@ numpy
 tensorflow
 tensorflow-probability
 tensorflow-model-optimization
+pydot
+tf-keras

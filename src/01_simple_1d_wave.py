@@ -24,7 +24,7 @@ cfg_shape_net = {
     "output_dim": 1,
     "units": 30,
     "nlayers": 2,
-    "activation": 'swish'
+    "activation": 'swish',
 }
 cfg_parameter_net = {
     "input_dim": 1,

@@ -78,11 +78,11 @@ with cm:
 
     n_output = 1
 
-    y_and_dydx = JacobianLayer(model, y_index, x_index)
-    y, dy_dx = y_and_dydx(model.inputs[0])  ##  use[0] to make sure shape is good
-    dy_dx_1d = tf.reshape(dy_dx, [-1,2*n_output])
-    y_and_dydx_1d = tf.concat([y, dy_dx_1d],-1)
-    model = tf.keras.Model([model.inputs[0]], [y_and_dydx_1d])
+    # y_and_dydx = JacobianLayer(model, y_index, x_index)
+    # y, dy_dx = y_and_dydx(model.inputs[0])  ##  use[0] to make sure shape is good
+    # dy_dx_1d = tf.reshape(dy_dx, [-1,2*n_output])
+    # y_and_dydx_1d = tf.concat([y, dy_dx_1d],-1)
+    # model = tf.keras.Model([model.inputs[0]], [y_and_dydx_1d])
 
     class Sobolov_MSE(tf.keras.losses.Loss):
         def call(self, y_true, y_pred):

@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from nif.functional.layers.shortcut import Shortcut
 from nif.functional.layers.resnet import ResNet
-from nif.functional.layers.static_dense import StaticDense
+from nif.functional.layers.hyper_dense import HyperDense
+from nif.functional.layers.hyper_siren import HyperSIREN
 from nif.functional import utils
 
 class NIF(tf.keras.Model):
@@ -102,12 +103,20 @@ class NIF(tf.keras.Model):
     @staticmethod
     def _build_shape_net(cfg_shape_net) -> list:
         layers = []
+        if cfg_shape_net["activation"] == 'sine':
+            ShapeNetLayer = HyperSIREN
+            extra_args = {"omega_0": cfg_shape_net["omega_0"]}
+            extra_args_last = extra_args
+        else:
+            ShapeNetLayer = HyperDense
+            extra_args = {"activation": tf.keras.activations.get(cfg_shape_net["activation"])}
+            extra_args_last = {"activation": None}
 
         # First layer -- input_dim -> units fully connected
-        layers.append(StaticDense(
+        layers.append(ShapeNetLayer(
             name="first_snet",
             units=cfg_shape_net["units"],
-            activation=tf.keras.activations.get(cfg_shape_net["activation"]),
+            **extra_args,
             weights_from=0,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"],
             bias_offset=utils.get_weights_dim(cfg_shape_net),
@@ -117,10 +126,10 @@ class NIF(tf.keras.Model):
 
         for i in range(cfg_shape_net["nlayers"]):
             # Hidden layer -- units -> units fully connected
-            layers.append(StaticDense(
+            layers.append(ShapeNetLayer(
                 name=f"hidden_snet_{i}",
                 units=cfg_shape_net["units"],
-                activation=tf.keras.activations.get(cfg_shape_net["activation"]),
+                **extra_args,
                 weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + i * cfg_shape_net["units"]**2,
                 weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + (i + 1) * cfg_shape_net["units"]**2,
                 bias_offset=utils.get_weights_dim(cfg_shape_net),
@@ -128,10 +137,10 @@ class NIF(tf.keras.Model):
                 biases_to=(i+2) * cfg_shape_net["units"],
             ))
         # Last layer -- units -> output_dim fully connected
-        layers.append(StaticDense(
+        layers.append(ShapeNetLayer(
             name="last_snet",
             units=cfg_shape_net["output_dim"],
-            activation=None,
+            **extra_args_last,
             weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2 + cfg_shape_net["output_dim"] * cfg_shape_net["units"],
             bias_offset=utils.get_weights_dim(cfg_shape_net),

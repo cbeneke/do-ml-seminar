@@ -6,6 +6,16 @@ from nif.functional.layers.hyper_dense import HyperDense
 from nif.functional.layers.hyper_siren import HyperSIREN
 from nif.functional import utils
 
+class HyperForSIRENInitializer(tf.keras.initializers.Initializer):
+    def __init__(self, cfg_shape_net, omega):
+        self.cfg_shape_net = cfg_shape_net
+        self.parameters = tf.Variable(tf.random.uniform(shape, -limit, limit, dtype=dtype))
+        self.omega = omega
+
+    def __call__(self, shape, dtype=None):
+        # Use get_parameter_net_output_dim, then sine initializers
+        return tf.random.uniform(shape, -limit, limit, dtype=dtype)
+
 class NIF(tf.keras.Model):
     def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy):
         super().__init__()
@@ -88,11 +98,16 @@ class NIF(tf.keras.Model):
         ))
 
         # Last Layer with additional activation regularizer
+        if cfg_parameter_net["activation"] == 'sine':
+            last_layer_initializer = HyperForSIRENInitializer(cfg_shape_net, cfg_parameter_net["omega_0"])
+        else:
+            last_layer_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
+
         layers.append(tf.keras.layers.Dense(
             name="last_pnet",
             units=utils.get_parameter_net_output_dim(cfg_shape_net),
-            kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-            bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+            kernel_initializer=last_layer_initializer,
+            bias_initializer=last_layer_initializer,
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
             activity_regularizer=activity_regularizer,

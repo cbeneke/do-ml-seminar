@@ -1,4 +1,5 @@
-from .mlp import MLP
-from .gradient import GradientLayer
+from .shortcut import Shortcut
+from .static_dense import StaticDense
+from .resnet import ResNet
 
-__all__ = ['MLP', 'GradientLayer'] 
+__all__ = ['Shortcut', 'StaticDense', 'ResNet']

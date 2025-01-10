@@ -2,12 +2,20 @@ import numpy as np
 import contextlib
 from matplotlib import pyplot as plt
 import os
-import tensorflow as tf
-from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
-from nif.upstream import utils
 
-#NIF_IMPLEMENTATION="upstream"
-NIF_IMPLEMENTATION="functional"
+# NIF_IMPLEMENTATION="upstream"
+# NIF_IMPLEMENTATION="functional"
+NIF_IMPLEMENTATION="pytorch"
+
+if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
+    import tensorflow as tf
+    from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
+    from nif.upstream import utils
+elif NIF_IMPLEMENTATION == "pytorch":
+    import torch
+    from nif.torch import utils
+else:
+    raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
 enable_multi_gpu = False
 enable_mixed_precision = False
@@ -86,38 +94,77 @@ if NIF_IMPLEMENTATION == "upstream":
     import nif.upstream as nif
 elif NIF_IMPLEMENTATION == "functional":
     import nif.functional as nif
+elif NIF_IMPLEMENTATION == "pytorch":
+    import nif.torch as nif
+else:
+    raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
     
 from nif.data import TravelingWave
 tw = TravelingWave()
 train_data = tw.data
 
-num_total_data = train_data.shape[0]
+if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
+    num_total_data = train_data.shape[0]
 
+    train_inputs = train_data[:, :2]
+    train_targets = train_data[:, -1:]
+    train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
+    train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    
 
-train_inputs = train_data[:, :2]
-train_targets = train_data[:, -1:]
-train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
-train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
+    with cm:
+        optimizer = AdaBeliefOptimizer(lr)
+        optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
 
-cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
-with cm:
-    optimizer = AdaBeliefOptimizer(lr)
-    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+        model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+        model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+        model.compile(optimizer, loss='mse')
 
+        model.summary()
+
+    # Create directory for saved weights if it doesn't exist
+    os.makedirs('./saved_weights', exist_ok=True)
+
+    # Initialize callbacks
+    scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+    loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+    callbacks = [loss_callback, scheduler_callback]
+
+    # Train model
+    model.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
+            shuffle=False, verbose=0, callbacks=callbacks)
+elif NIF_IMPLEMENTATION == "pytorch":
+    train_inputs = torch.from_numpy(train_data[:, :2]).float()
+    train_targets = torch.from_numpy(train_data[:, -1:]).float()
+    train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
+
+    # Initialize model, optimizer, and data loader
     model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
-    model.compile(optimizer, loss='mse')
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=True
+    )
 
-    model.summary()
+    # Create logger
+    logger = nif.TrainingLogger(
+        display_epoch=100,
+        print_figure_epoch=100,
+        checkpt_epoch=1000,
+        n_epochs=nepoch
+    )
 
-# Create directory for saved weights if it doesn't exist
-os.makedirs('./saved_weights', exist_ok=True)
-
-# Initialize callbacks
-scheduler_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-loss_callback = utils.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
-callbacks = [loss_callback, scheduler_callback]
-
-# Train model
-model.fit(train_dataset, epochs=nepoch, batch_size=batch_size,
-        shuffle=False, verbose=0, callbacks=callbacks)
+    # Train model
+    history = nif.train_model(
+        model=model,
+        train_loader=train_loader,
+        optimizer=optimizer,
+        n_epochs=nepoch,
+        logger=logger
+    )
+else:
+    raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")

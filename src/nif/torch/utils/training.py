@@ -75,9 +75,10 @@ class TrainingLogger:
             # Make predictions
             model.eval()
             with torch.no_grad():
-                inputs = train_data[:, :2].to(next(model.parameters()).device)
+                inputs = train_data[0].to(next(model.parameters()).device)
                 u_pred = model(inputs).cpu().numpy().reshape(10, 200)
-                u_true = train_data[:, -1].reshape(10, 200)
+                u_true = train_data[1].cpu().numpy().reshape(10, 200)
+
             model.train()
             
             # Create visualization
@@ -164,7 +165,7 @@ def train_model(
             epoch,
             avg_loss,
             model,
-            next(iter(train_loader))[0],  # First batch of training data
+            train_loader.dataset.tensors,
             train_loader.batch_size
         )
     

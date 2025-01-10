@@ -3,8 +3,8 @@ import contextlib
 from matplotlib import pyplot as plt
 import os
 
-#NIF_IMPLEMENTATION="upstream"
-#NIF_IMPLEMENTATION="functional"
+# NIF_IMPLEMENTATION="upstream"
+# NIF_IMPLEMENTATION="functional"
 NIF_IMPLEMENTATION="pytorch"
 
 if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":

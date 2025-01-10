@@ -46,7 +46,7 @@ from .layers import SIREN_ResNet
 from .layers import BiasAddLayer
 
 
-class NIF(object):
+class NIF(tf.keras.Model):
     """
     Neural Implicit Flow class represents a network with two sub-networks to reduce
     the dimensionality of spatial temporal fields
@@ -338,7 +338,8 @@ class NIF(object):
         output_final = pnet_list[-1](latent)
         return output_final, latent
 
-    def build(self):
+    # The functional API expects input_shape as parameter, which we don't use here
+    def build(self, input_shape):
         """
         Builds and returns the NIF model with a Jacobian regularization layer
         if specified in the configuration. Otherwise it is the same as `.model()`
@@ -380,7 +381,7 @@ class NIF(object):
             tf.keras.Model: The NIF model.
         """
         input_tot = tf.keras.layers.Input(
-            shape=(self.pi_dim + self.si_dim), name="input_tot"
+            shape=(self.pi_dim + self.si_dim,), name="input_tot"
         )
         return Model(inputs=[input_tot], outputs=[self.call(input_tot)])
 
@@ -522,7 +523,7 @@ class NIFMultiScale(NIF):
         input_s = inputs[:, self.pi_dim : self.pi_dim + self.si_dim]
         # get parameter from parameter_net
         self.pnet_output = self._call_parameter_net(input_p, self.pnet_list)[0]
-        return self._call_shape_net_mres(
+        output = self._call_shape_net_mres(
             tf.cast(input_s, self.compute_Dtype),
             self.pnet_output,
             flag_resblock=self.cfg_shape_net["use_resblock"],
@@ -533,7 +534,7 @@ class NIFMultiScale(NIF):
             l_sx=self.l_sx,
             variable_dtype=self.variable_Dtype,
         )
-
+        return output
     def _initialize_pnet(self, cfg_parameter_net, cfg_shape_net):
         """
         Generate the layers for the parameter net, given the configuration of the

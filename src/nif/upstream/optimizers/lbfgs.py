@@ -1,7 +1,7 @@
 # code comes from: https://gist.github.com/piyueh/712ec7d4540489aad2dcfb80f9a54993
 import numpy as np
 import tensorflow as tf
-import nif.tf as nif
+import nif.upstream as nif
 from tensorflow_probability.python.optimizer import lbfgs_minimize
 
 

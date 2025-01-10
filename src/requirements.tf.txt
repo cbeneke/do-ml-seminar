@@ -3,6 +3,8 @@ numpy==1.26.4
 tensorflow==2.18.0
 tensorflow-probability==0.25.0
 tensorflow-model-optimization==0.8.0
+pydot==3.0.3
+tf_keras==2.18.0
 ## The following requirements were added by pip freeze:
 absl-py==1.4.0
 astunparse==1.6.3
@@ -44,7 +46,6 @@ six==1.16.0
 tensorboard==2.18.0
 tensorboard-data-server==0.7.2
 termcolor==2.5.0
-tf_keras==2.18.0
 typing_extensions==4.12.2
 urllib3==2.2.3
 Werkzeug==3.1.3

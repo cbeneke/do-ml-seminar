@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_model_optimization as tfmot
 
-import nif.tf as nif
+import nif.upstream as nif
 
 
 class MLP_ResNet(tf.keras.layers.Layer, tfmot.sparsity.keras.PrunableLayer):

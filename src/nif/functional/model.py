@@ -6,15 +6,57 @@ from nif.functional.layers.hyper_dense import HyperDense
 from nif.functional.layers.hyper_siren import HyperSIREN
 from nif.functional import utils
 
-class HyperForSIRENInitializer(tf.keras.initializers.Initializer):
-    def __init__(self, cfg_shape_net, omega):
+class SIRENKernelInitializer(tf.keras.initializers.Initializer):
+    def __init__(self, cfg_shape_net):
         self.cfg_shape_net = cfg_shape_net
-        self.parameters = tf.Variable(tf.random.uniform(shape, -limit, limit, dtype=dtype))
-        self.omega = omega
+        self.input_dim = cfg_shape_net["input_dim"]
+        self.units = cfg_shape_net["units"]
+        self.layers = cfg_shape_net["nlayers"]
+        self.omega_0 = cfg_shape_net["omega_0"]
 
     def __call__(self, shape, dtype=None):
-        # Use get_parameter_net_output_dim, then sine initializers
-        return tf.random.uniform(shape, -limit, limit, dtype=dtype)
+        weights_init = tf.random.uniform(
+            shape=(shape[0], utils.get_weights_dim(self.cfg_shape_net), shape[2])
+        )
+
+        # First Layer
+        first_layer_cut = self.input_dim * self.units
+        weights_init[:, :first_layer_cut ] *= 6
+
+        # Hidden Layers
+        hidden_layer_cut = first_layer_cut + self.layers * (self.units**2)
+        weights_init[:, first_layer_cut:hidden_layer_cut ] *= 6
+
+        # Last Layer
+        weights_init[:, hidden_layer_cut: ] *= 6
+
+        return weights_init
+
+class SIRENBiasInitializer(tf.keras.initializers.Initializer):
+    def __init__(self, cfg_shape_net):
+        self.cfg_shape_net = cfg_shape_net
+        self.input_dim = cfg_shape_net["input_dim"]
+        self.hidden_layer_units = cfg_shape_net["units"]
+        self.hiddel_layers = cfg_shape_net["nlayers"]
+        self.omega_0 = cfg_shape_net["omega_0"]
+
+    def __call__(self, shape, dtype=None):
+        biases_init = tf.ones(
+            shape=(shape[0], utils.get_biases_dim(self.cfg_shape_net),shape[2])
+        )
+
+        # First Layer
+        first_layer_cut = self.units
+        biases_init[:, :first_layer_cut ] *= 6
+
+        # Hidden Layers
+        hidden_layer_cut = first_layer_cut + self.layers * self.units
+        biases_init[:, first_layer_cut:hidden_layer_cut ] *= 6
+
+        # Last Layer
+        biases_init[:, hidden_layer_cut: ] *= 6
+
+        return biases_init
 
 class NIF(tf.keras.Model):
     def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy):
@@ -99,15 +141,17 @@ class NIF(tf.keras.Model):
 
         # Last Layer with additional activation regularizer
         if cfg_parameter_net["activation"] == 'sine':
-            last_layer_initializer = HyperForSIRENInitializer(cfg_shape_net, cfg_parameter_net["omega_0"])
+            last_layer_kernel_initializer = SIRENKernelInitializer(cfg_shape_net)
+            last_layer_bias_initializer = SIRENBiasInitializer(cfg_shape_net)
         else:
-            last_layer_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
+            last_layer_kernel_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
+            last_layer_bias_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
 
         layers.append(tf.keras.layers.Dense(
             name="last_pnet",
             units=utils.get_parameter_net_output_dim(cfg_shape_net),
-            kernel_initializer=last_layer_initializer,
-            bias_initializer=last_layer_initializer,
+            kernel_initializer=last_layer_kernel_initializer,
+            bias_initializer=last_layer_bias_initializer,
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
             activity_regularizer=activity_regularizer,

@@ -4,8 +4,8 @@ import os
 import tensorflow as tf
 from nif import base
 
-NIF_IMPLEMENTATION="upstream"
-#NIF_IMPLEMENTATION="functional"
+# NIF_IMPLEMENTATION="upstream"
+NIF_IMPLEMENTATION="functional"
 
 enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, checkpt_epoch, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
 u, x, t, x0, c, omega, xx, tt = base.setup_example_base(NT, NX)
@@ -18,6 +18,8 @@ if NIF_IMPLEMENTATION == "upstream":
     from nif.upstream.layers import JacobianLayer
 elif NIF_IMPLEMENTATION == "functional":
     import nif.functional as nif
+else:
+    raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
 cfg_shape_net = {
     "use_resblock": False,
@@ -27,7 +29,8 @@ cfg_shape_net = {
     "units": 30,
     "nlayers": 2,
     "weight_init_factor": 0.01,
-    "omega_0": 30.0
+    "omega_0": 30.0,
+    "activation": 'sine'
 }
 cfg_parameter_net = {
     "use_resblock": False,
@@ -69,14 +72,20 @@ train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch
 cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
 with cm:
     optimizer = tf.keras.optimizers.Adam(lr)
-    model = nif.NIFMultiScale(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model.build(input_shape=None)
-    
-    # sobolov training
-    x_index = [0, 1]  # t,x
-    y_index = [0]  # we have 1 field output - u
+    if NIF_IMPLEMENTATION == "upstream":
+        model = nif.NIFMultiScale(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    elif NIF_IMPLEMENTATION == "functional":
+        model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    else:
+        raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
-    n_output = 1
+    # model.build(input_shape=None)
+
+    ## sobolov training
+    # x_index = [0, 1]  # t,x
+    # y_index = [0]  # we have 1 field output - u
+
+    # n_output = 1
 
     # y_and_dydx = JacobianLayer(model, y_index, x_index)
     # y, dy_dx = y_and_dydx(model.inputs[0])  ##  use[0] to make sure shape is good
@@ -84,27 +93,32 @@ with cm:
     # y_and_dydx_1d = tf.concat([y, dy_dx_1d],-1)
     # model = tf.keras.Model([model.inputs[0]], [y_and_dydx_1d])
 
-    class Sobolov_MSE(tf.keras.losses.Loss):
-        def call(self, y_true, y_pred):
-            sd_field = tf.square(y_true[:, :n_output] - y_pred[:, :n_output])
-            # sd_grad = tf.square(y_true[:, n_output:] - y_pred[:, n_output:])
-            sd_grad =  tf.square(y_true[:, n_output+1:] - y_pred[:, n_output+1:])
-            return tf.reduce_mean(sd_field,axis=-1) + coef_grad*tf.reduce_mean(sd_grad,axis=-1)
+    # class Sobolov_MSE(tf.keras.losses.Loss):
+    #     def call(self, y_true, y_pred):
+    #         sd_field = tf.square(y_true[:, :n_output] - y_pred[:, :n_output])
+    #         # sd_grad = tf.square(y_true[:, n_output:] - y_pred[:, n_output:])
+    #         sd_grad =  tf.square(y_true[:, n_output+1:] - y_pred[:, n_output+1:])
+    #         return tf.reduce_mean(sd_field,axis=-1) + coef_grad*tf.reduce_mean(sd_grad,axis=-1)
     
-    def Sobolov_MSE_u(y_true, y_pred):
-            sd_field = tf.square(y_true[:, :n_output] - y_pred[:, :n_output])
-            return tf.reduce_mean(sd_field,axis=-1)
+    # def Sobolov_MSE_u(y_true, y_pred):
+    #         sd_field = tf.square(y_true[:, :n_output] - y_pred[:, :n_output])
+    #         return tf.reduce_mean(sd_field,axis=-1)
 
-    def Sobolov_MSE_dudt(y_true, y_pred):
-        sd_grad = tf.square(y_true[:, n_output:n_output+1] - y_pred[:, n_output:n_output+1])
-        return coef_grad*tf.reduce_mean(sd_grad,axis=-1)
+    # def Sobolov_MSE_dudt(y_true, y_pred):
+    #     sd_grad = tf.square(y_true[:, n_output:n_output+1] - y_pred[:, n_output:n_output+1])
+    #     return coef_grad*tf.reduce_mean(sd_grad,axis=-1)
 
-    def Sobolov_MSE_dudx(y_true, y_pred):
-        sd_grad = tf.square(y_true[:, n_output+1:] - y_pred[:, n_output+1:])
-        return coef_grad*tf.reduce_mean(sd_grad,axis=-1)
+    # def Sobolov_MSE_dudx(y_true, y_pred):
+    #     sd_grad = tf.square(y_true[:, n_output+1:] - y_pred[:, n_output+1:])
+    #     return coef_grad*tf.reduce_mean(sd_grad,axis=-1)
     
-    model.compile(optimizer, loss=Sobolov_MSE(), 
-                      metrics=[Sobolov_MSE_u, Sobolov_MSE_dudt, Sobolov_MSE_dudx])
+    # model.compile(optimizer, loss=Sobolov_MSE(), 
+    #                   metrics=[Sobolov_MSE_u, Sobolov_MSE_dudt, Sobolov_MSE_dudx])
+
+    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+    model.compile(optimizer, loss='mse')
+
+    model.summary()
     
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)

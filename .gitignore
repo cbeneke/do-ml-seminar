@@ -12,3 +12,7 @@ __pycache__/
 *.h5
 *.keras
 saved_weights/
+
+# PyTorch
+*.pt
+*.pth

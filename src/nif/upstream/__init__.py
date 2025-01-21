@@ -3,7 +3,6 @@ from tensorflow.keras import mixed_precision
 
 from .__about__ import __version__
 from nif.upstream import optimizers
-from nif.upstream import utils
 from nif.upstream.model import NIF
 from nif.upstream.model import NIFMultiScale
 from nif.upstream.model import NIFMultiScaleLastLayerParameterized

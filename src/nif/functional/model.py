@@ -2,8 +2,55 @@ import tensorflow as tf
 
 from nif.functional.layers.shortcut import Shortcut
 from nif.functional.layers.resnet import ResNet
-from nif.functional.layers.static_dense import StaticDense
+from nif.functional.layers.hyper_dense import HyperDense
+from nif.functional.layers.hyper_siren import HyperSIREN
 from nif.functional import utils
+
+class SIRENKernelInitializer(tf.keras.initializers.Initializer):
+    def __init__(self, cfg_shape_net):
+        self.cfg_shape_net = cfg_shape_net
+        self.input_dim = cfg_shape_net["input_dim"]
+        self.output_dim = cfg_shape_net["output_dim"]
+        self.units = cfg_shape_net["units"]
+        self.layers = cfg_shape_net["nlayers"]
+        self.omega_0 = cfg_shape_net["omega_0"]
+
+    def __call__(self, shape, dtype=None):
+        weights = tf.zeros(
+            shape=(shape[0], utils.get_weights_dim(self.cfg_shape_net), shape[2]),
+            dtype=dtype,
+        )
+
+        # First Layer - uniform distribution between +- 1/input_dim
+        first_layer_cut = self.input_dim * self.units
+        weights[:, :first_layer_cut ] = tf.random.uniform(
+            shape=(shape[0], first_layer_cut, shape[2]),
+            minval=-1,
+            maxval=1,
+            dtype=dtype,
+        )
+
+        # Hidden Layers - uniform distribution between +- sqrt(6/input_dim) * omega_0
+        for i in tf.range(self.layers):
+            hidden_layer_from = first_layer_cut + (i * (self.units**2))
+            hidden_layer_to = first_layer_cut + ((i+1) * (self.units**2))
+            weights[:, hidden_layer_from:hidden_layer_to ] = tf.random.uniform(
+                shape=(shape[0], self.units**2, shape[2]),
+                minval=-self.omega_0 * tf.sqrt(6 / self.input_dim),
+                maxval=self.omega_0 * tf.sqrt(6 / self.input_dim),
+                dtype=dtype,
+            )
+
+        # Last Layer
+        last_layer_from = first_layer_cut + (self.layers * (self.units**2))
+        weights[:, last_layer_from: ] = tf.random.uniform(
+            shape=(shape[0], self.output_dim * self.units, shape[2]),
+            minval=-self.omega_0 * tf.sqrt(6 / self.input_dim),
+            maxval=self.omega_0 * tf.sqrt(6 / self.input_dim),
+            dtype=dtype,
+        )
+
+        return weights
 
 class NIF(tf.keras.Model):
     def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy):
@@ -74,23 +121,28 @@ class NIF(tf.keras.Model):
                 dtype=mixed_policy,
             ))
         
-        # Bottleneck layer
-        layers.append(tf.keras.layers.Dense(
-            name="bottleneck_pnet",
-            units=cfg_parameter_net["latent_dim"],
-            activation=cfg_parameter_net["activation"],
-            kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-            bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            dtype=mixed_policy,
-        ))
+        # # Bottleneck layer
+        # layers.append(tf.keras.layers.Dense(
+        #     name="bottleneck_pnet",
+        #     units=cfg_parameter_net["latent_dim"],
+        #     activation=cfg_parameter_net["activation"],
+        #     kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+        #     bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+        #     kernel_regularizer=kernel_regularizer,
+        #     bias_regularizer=bias_regularizer,
+        #     dtype=mixed_policy,
+        # ))
 
         # Last Layer with additional activation regularizer
+        if cfg_parameter_net["activation"] == 'sine':
+            last_layer_kernel_initializer = SIRENKernelInitializer(cfg_shape_net)
+        else:
+            last_layer_kernel_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
+
         layers.append(tf.keras.layers.Dense(
             name="last_pnet",
             units=utils.get_parameter_net_output_dim(cfg_shape_net),
-            kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+            kernel_initializer=last_layer_kernel_initializer,
             bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
@@ -102,12 +154,19 @@ class NIF(tf.keras.Model):
     @staticmethod
     def _build_shape_net(cfg_shape_net) -> list:
         layers = []
+        if cfg_shape_net["activation"] == 'sine':
+            ShapeNetLayer = HyperSIREN
+            extra_args = {"omega_0": cfg_shape_net["omega_0"]}
+        else:
+            ShapeNetLayer = HyperDense
+            extra_args = {}
 
         # First layer -- input_dim -> units fully connected
-        layers.append(StaticDense(
+        layers.append(ShapeNetLayer(
             name="first_snet",
             units=cfg_shape_net["units"],
-            activation=tf.keras.activations.get(cfg_shape_net["activation"]),
+            activation=cfg_shape_net["activation"],
+            **extra_args,
             weights_from=0,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"],
             bias_offset=utils.get_weights_dim(cfg_shape_net),
@@ -117,21 +176,24 @@ class NIF(tf.keras.Model):
 
         for i in range(cfg_shape_net["nlayers"]):
             # Hidden layer -- units -> units fully connected
-            layers.append(StaticDense(
+            layers.append(ShapeNetLayer(
                 name=f"hidden_snet_{i}",
                 units=cfg_shape_net["units"],
-                activation=tf.keras.activations.get(cfg_shape_net["activation"]),
+                activation=cfg_shape_net["activation"],
+                **extra_args,
                 weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + i * cfg_shape_net["units"]**2,
                 weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + (i + 1) * cfg_shape_net["units"]**2,
                 bias_offset=utils.get_weights_dim(cfg_shape_net),
                 biases_from=(i+1) * cfg_shape_net["units"],
                 biases_to=(i+2) * cfg_shape_net["units"],
             ))
+            
         # Last layer -- units -> output_dim fully connected
-        layers.append(StaticDense(
+        layers.append(ShapeNetLayer(
             name="last_snet",
             units=cfg_shape_net["output_dim"],
             activation=None,
+            **extra_args,
             weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2 + cfg_shape_net["output_dim"] * cfg_shape_net["units"],
             bias_offset=utils.get_weights_dim(cfg_shape_net),

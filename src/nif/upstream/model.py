@@ -535,6 +535,7 @@ class NIFMultiScale(NIF):
             variable_dtype=self.variable_Dtype,
         )
         return output
+        
     def _initialize_pnet(self, cfg_parameter_net, cfg_shape_net):
         """
         Generate the layers for the parameter net, given the configuration of the

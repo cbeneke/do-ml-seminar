@@ -1,13 +1,9 @@
-# StaticDense is a Layer that implements a dense layer with given weights and biases
-
 import tensorflow as tf
 
-class StaticDense(tf.keras.layers.Layer):
-    def __init__(self, units, activation, weights_from, weights_to, bias_offset, biases_from, biases_to, **kwargs):
+# HyperLayer is a base class for layers that utilise provided weights and biases
+class HyperLayer(tf.keras.layers.Layer):
+    def __init__(self, weights_from, weights_to, bias_offset, biases_from, biases_to, **kwargs):
         super().__init__(**kwargs)
-
-        self.units = units
-        self.activation = activation
 
         self.weights_from = weights_from
         self.weights_to = weights_to
@@ -32,14 +28,15 @@ class StaticDense(tf.keras.layers.Layer):
         return weights, biases
 
     @tf.function
+    def call_step(self, inputs, weights, biases):
+        raise NotImplementedError("call_step must be implemented when using HyperLayer")
+
+    @tf.function
     def call(self, inputs):
         inputs, parameters = inputs
         weights, biases = self._parse_parameters(parameters)
 
-        x = tf.einsum("ai,aij->aj", inputs, weights)
-        x = tf.add(x, biases)
-        if self.activation is not None:
-            x = self.activation(x)
+        x = self.call_step(inputs, weights, biases)
         return x
 
     def compute_output_shape(self, input_shape):

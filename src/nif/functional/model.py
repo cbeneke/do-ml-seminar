@@ -10,53 +10,47 @@ class SIRENKernelInitializer(tf.keras.initializers.Initializer):
     def __init__(self, cfg_shape_net):
         self.cfg_shape_net = cfg_shape_net
         self.input_dim = cfg_shape_net["input_dim"]
+        self.output_dim = cfg_shape_net["output_dim"]
         self.units = cfg_shape_net["units"]
         self.layers = cfg_shape_net["nlayers"]
         self.omega_0 = cfg_shape_net["omega_0"]
 
     def __call__(self, shape, dtype=None):
-        weights_init = tf.random.uniform(
-            shape=(shape[0], utils.get_weights_dim(self.cfg_shape_net), shape[2])
+        weights = tf.zeros(
+            shape=(shape[0], utils.get_weights_dim(self.cfg_shape_net), shape[2]),
+            dtype=dtype,
         )
 
-        # First Layer
+        # First Layer - uniform distribution between +- 1/input_dim
         first_layer_cut = self.input_dim * self.units
-        weights_init[:, :first_layer_cut ] *= 6
-
-        # Hidden Layers
-        hidden_layer_cut = first_layer_cut + self.layers * (self.units**2)
-        weights_init[:, first_layer_cut:hidden_layer_cut ] *= 6
-
-        # Last Layer
-        weights_init[:, hidden_layer_cut: ] *= 6
-
-        return weights_init
-
-class SIRENBiasInitializer(tf.keras.initializers.Initializer):
-    def __init__(self, cfg_shape_net):
-        self.cfg_shape_net = cfg_shape_net
-        self.input_dim = cfg_shape_net["input_dim"]
-        self.hidden_layer_units = cfg_shape_net["units"]
-        self.hiddel_layers = cfg_shape_net["nlayers"]
-        self.omega_0 = cfg_shape_net["omega_0"]
-
-    def __call__(self, shape, dtype=None):
-        biases_init = tf.ones(
-            shape=(shape[0], utils.get_biases_dim(self.cfg_shape_net),shape[2])
+        weights[:, :first_layer_cut ] = tf.random.uniform(
+            shape=(shape[0], first_layer_cut, shape[2]),
+            minval=-1,
+            maxval=1,
+            dtype=dtype,
         )
 
-        # First Layer
-        first_layer_cut = self.units
-        biases_init[:, :first_layer_cut ] *= 6
-
-        # Hidden Layers
-        hidden_layer_cut = first_layer_cut + self.layers * self.units
-        biases_init[:, first_layer_cut:hidden_layer_cut ] *= 6
+        # Hidden Layers - uniform distribution between +- sqrt(6/input_dim) * omega_0
+        for i in tf.range(self.layers):
+            hidden_layer_from = first_layer_cut + (i * (self.units**2))
+            hidden_layer_to = first_layer_cut + ((i+1) * (self.units**2))
+            weights[:, hidden_layer_from:hidden_layer_to ] = tf.random.uniform(
+                shape=(shape[0], self.units**2, shape[2]),
+                minval=-self.omega_0 * tf.sqrt(6 / self.input_dim),
+                maxval=self.omega_0 * tf.sqrt(6 / self.input_dim),
+                dtype=dtype,
+            )
 
         # Last Layer
-        biases_init[:, hidden_layer_cut: ] *= 6
+        last_layer_from = first_layer_cut + (self.layers * (self.units**2))
+        weights[:, last_layer_from: ] = tf.random.uniform(
+            shape=(shape[0], self.output_dim * self.units, shape[2]),
+            minval=-self.omega_0 * tf.sqrt(6 / self.input_dim),
+            maxval=self.omega_0 * tf.sqrt(6 / self.input_dim),
+            dtype=dtype,
+        )
 
-        return biases_init
+        return weights
 
 class NIF(tf.keras.Model):
     def __init__(self, cfg_shape_net, cfg_parameter_net, mixed_policy):
@@ -127,31 +121,29 @@ class NIF(tf.keras.Model):
                 dtype=mixed_policy,
             ))
         
-        # Bottleneck layer
-        layers.append(tf.keras.layers.Dense(
-            name="bottleneck_pnet",
-            units=cfg_parameter_net["latent_dim"],
-            activation=cfg_parameter_net["activation"],
-            kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-            bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            dtype=mixed_policy,
-        ))
+        # # Bottleneck layer
+        # layers.append(tf.keras.layers.Dense(
+        #     name="bottleneck_pnet",
+        #     units=cfg_parameter_net["latent_dim"],
+        #     activation=cfg_parameter_net["activation"],
+        #     kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+        #     bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+        #     kernel_regularizer=kernel_regularizer,
+        #     bias_regularizer=bias_regularizer,
+        #     dtype=mixed_policy,
+        # ))
 
         # Last Layer with additional activation regularizer
         if cfg_parameter_net["activation"] == 'sine':
             last_layer_kernel_initializer = SIRENKernelInitializer(cfg_shape_net)
-            last_layer_bias_initializer = SIRENBiasInitializer(cfg_shape_net)
         else:
             last_layer_kernel_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
-            last_layer_bias_initializer = tf.keras.initializers.TruncatedNormal(stddev=0.1)
 
         layers.append(tf.keras.layers.Dense(
             name="last_pnet",
             units=utils.get_parameter_net_output_dim(cfg_shape_net),
             kernel_initializer=last_layer_kernel_initializer,
-            bias_initializer=last_layer_bias_initializer,
+            bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
             activity_regularizer=activity_regularizer,
@@ -165,16 +157,15 @@ class NIF(tf.keras.Model):
         if cfg_shape_net["activation"] == 'sine':
             ShapeNetLayer = HyperSIREN
             extra_args = {"omega_0": cfg_shape_net["omega_0"]}
-            extra_args_last = extra_args
         else:
             ShapeNetLayer = HyperDense
-            extra_args = {"activation": tf.keras.activations.get(cfg_shape_net["activation"])}
-            extra_args_last = {"activation": None}
+            extra_args = {}
 
         # First layer -- input_dim -> units fully connected
         layers.append(ShapeNetLayer(
             name="first_snet",
             units=cfg_shape_net["units"],
+            activation=cfg_shape_net["activation"],
             **extra_args,
             weights_from=0,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"],
@@ -188,6 +179,7 @@ class NIF(tf.keras.Model):
             layers.append(ShapeNetLayer(
                 name=f"hidden_snet_{i}",
                 units=cfg_shape_net["units"],
+                activation=cfg_shape_net["activation"],
                 **extra_args,
                 weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + i * cfg_shape_net["units"]**2,
                 weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + (i + 1) * cfg_shape_net["units"]**2,
@@ -195,11 +187,13 @@ class NIF(tf.keras.Model):
                 biases_from=(i+1) * cfg_shape_net["units"],
                 biases_to=(i+2) * cfg_shape_net["units"],
             ))
+            
         # Last layer -- units -> output_dim fully connected
         layers.append(ShapeNetLayer(
             name="last_snet",
             units=cfg_shape_net["output_dim"],
-            **extra_args_last,
+            activation=None,
+            **extra_args,
             weights_from=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2,
             weights_to=cfg_shape_net["input_dim"] * cfg_shape_net["units"] + cfg_shape_net["nlayers"] * cfg_shape_net["units"]**2 + cfg_shape_net["output_dim"] * cfg_shape_net["units"],
             bias_offset=utils.get_weights_dim(cfg_shape_net),

@@ -51,27 +51,27 @@ def get_derivative_data(x0, c, omega, xx, tt):
 def get_base_configs():
     enable_multi_gpu = False
     enable_mixed_precision = False
-    nepoch = 50000
+    nepoch = 5000
     lr = 1e-4
     batch_size = 512
-    checkpt_epoch = 1000
     display_epoch = 100
     print_figure_epoch = 100
 
     NT=10 # 20
     NX=200
     
-    return enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, checkpt_epoch, display_epoch, print_figure_epoch, NT, NX
+    return enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX
 
 def scheduler(epoch, lr):
-    if epoch < 1000:
-        return lr
-    elif epoch < 2000:
-        return 1e-3
-    elif epoch < 4000:
-        return 5e-4
-    else:
-        return 1e-4
+    return lr
+    # if epoch < 1000:
+    #     return lr
+    # elif epoch < 2000:
+    #     return 1e-3
+    # elif epoch < 4000:
+    #     return 5e-4
+    # else:
+    #     return 1e-4
     
 class LossAndErrorPrintingCallback(tf.keras.callbacks.Callback):
     def __init__(self, nepoch, train_data, xx, tt, NT, NX):

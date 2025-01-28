@@ -2,194 +2,296 @@
 
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{array}
 \usepackage{url}
 \usepackage{hyperref}
 \usepackage{subcaption}
+\usepackage{listings}
 
 \begin{document}
 
-\title{Neural Implicit Functions: A Comparative Study of Implementation Approaches}
+\title{Neural Implicit Flow: A Comparative Study of Implementation Approaches}
 
 \author{Christian~Beneke}
 
 \maketitle
 
 \begin{abstract}
-Neural Implicit Functions (NIFs) have emerged as a powerful approach for representing continuous functions in various domains, particularly for spatio-temporal data modeled by PDEs. This paper presents a comparative study of three different implementations of NIFs: an upstream reference implementation, a PyTorch-based approach, and a TensorFlow Functional API design. We evaluate these implementations on both simple periodic and complex high-frequency wave functions, analyzing their performance, convergence characteristics, and implementation trade-offs. Our results demonstrate that while all implementations successfully model the target functions, they exhibit different strengths in terms of convergence speed, accuracy, and code maintainability. The TensorFlow Functional API implementation shows superior performance for high-frequency cases, achieving up to 4x better loss values compared to the baseline.
+Neural Implicit Flow (NIF) was proposed as a powerful approach for representing continuous functions in various domains, particularly for spatio-temporal data modeled by PDEs. This paper presents a comparative study of three different implementations of NIFs: an upstream reference implementation, a PyTorch-based approach, and a TensorFlow Functional API design. We evaluate these implementations on both simple periodic and complex high-frequency wave functions, analyzing their performance, convergence characteristics, and implementation trade-offs. Our results demonstrate that while all implementations successfully model the target functions, they exhibit different strengths in terms of convergence speed, accuracy, and code maintainability. The TensorFlow Functional API implementation shows superior performance for high-frequency cases, achieving up to 4x better loss values compared to the baseline.
 \end{abstract}
 
 \section{Introduction}
-The representation and simulation of complex spatio-temporal phenomena, particularly those governed by partial differential equations (PDEs), remains a significant challenge in computational science \cite{neural_fields2022}. Traditional approaches often rely on discrete mesh representations, which can become computationally intractable for complex geometries or require adaptive meshing techniques. Neural Implicit Functions (NIFs) have emerged as a promising solution, offering a continuous, mesh-agnostic representation through neural networks \cite{nif2023}.
+High-dimensional spatio-temporal dynamics present significant challenges in scientific computing and engineering applications. While these systems can often be encoded in low-dimensional subspaces, existing dimensionality reduction techniques struggle with practical engineering challenges such as variable geometry, non-uniform grid resolution, and adaptive meshing. Neural Implicit Flow (NIF) has emerged as a promising solution to these challenges, offering a mesh-agnostic, low-rank representation framework for large-scale, parametric, spatial-temporal data.
 
-NIFs address several key challenges in computational physics and engineering:
+\subsection{Background and Motivation}
+Traditional approaches to dimensionality reduction include linear methods like Singular Value Decomposition (SVD) and nonlinear methods such as Convolutional Autoencoders (CAE). However, these methods face several limitations:
+
 \begin{itemize}
-    \item \textbf{Mesh Dependency:} Traditional methods require careful mesh generation and refinement, which can be computationally expensive and error-prone for complex geometries.
-    \item \textbf{Memory Efficiency:} Discrete representations often require storing large matrices of field values, while NIFs provide a compact, continuous representation.
-    \item \textbf{Real-time Applications:} Many engineering applications require rapid evaluation of field values, which can be challenging with traditional numerical methods.
-    \item \textbf{Adaptive Resolution:} NIFs naturally support querying at arbitrary spatial locations without the need for interpolation or remeshing.
+    \item \textbf{Mesh Dependency:} SVD and CAE typically require fixed mesh structures, making them unsuitable for adaptive or variable geometry problems
+    \item \textbf{Scalability:} Traditional methods often scale poorly with data dimensionality, particularly in 3D applications
+    \item \textbf{Expressiveness:} Linear methods struggle to capture complex nonlinear dynamics effectively
 \end{itemize}
 
-This paper focuses on the practical aspects of implementing NIFs, comparing different architectural approaches and their impact on performance and usability. We implement and analyze three distinct approaches:
+NIF addresses these limitations through a novel architecture consisting of two key components:
+
 \begin{itemize}
-    \item An upstream reference implementation following traditional object-oriented principles
-    \item A PyTorch-based implementation leveraging native framework features
-    \item A TensorFlow Functional API design emphasizing composability and clear data flow
+    \item \textbf{ShapeNet:} A network that isolates and represents spatial complexity
+    \item \textbf{ParameterNet:} A network that handles parametric dependencies, time, and sensor measurements
 \end{itemize}
 
-\section{Background and Related Work}
-\subsection{Neural Implicit Functions}
-Neural Implicit Functions represent continuous functions through neural networks, typically combining two key components: a ShapeNet for encoding spatial complexity and a ParameterNet for modeling temporal and parametric dependencies \cite{nif2023}. This approach has shown promise in various applications, from computer graphics to scientific computing \cite{neural_fields2022}.
-
-The core innovation of NIFs lies in their ability to learn continuous representations of physical fields. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, a NIF learns the mapping:
+\subsection{Neural Implicit Flow Architecture}
+The core innovation of NIF lies in its ability to decouple spatial complexity from other factors. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, NIF learns the mapping:
 
 \begin{equation}
     f_\theta: (\mathbf{x}, \mathbf{t}) \mapsto u(\mathbf{x}, \mathbf{t})
 \end{equation}
 
-where $u(\mathbf{x}, \mathbf{t})$ represents the field value at the given space-time coordinate. The original paper demonstrated several key advantages:
+where $u(\mathbf{x}, \mathbf{t})$ represents the field value at the given space-time coordinate. This architecture offers several advantages:
 
 \begin{itemize}
-    \item \textbf{Accuracy:} NIFs achieve comparable or better accuracy compared to traditional reduced-order models
-    \item \textbf{Compression:} The neural representation typically requires orders of magnitude less storage than full field data
-    \item \textbf{Generalization:} NIFs can interpolate between training examples and generalize to unseen parameters
-    \item \textbf{Flexibility:} The approach works across various physical domains without domain-specific modifications
+    \item \textbf{Mesh Agnostic:} NIF operates directly on point-wise data, eliminating mesh dependencies
+    \item \textbf{Scalability:} The framework scales efficiently to high-dimensional problems
+    \item \textbf{Expressiveness:} The combination of ShapeNet and ParameterNet enables effective representation of complex dynamics
 \end{itemize}
 
-\subsection{Architecture Components}
-The NIF architecture consists of several key components working in concert:
+\subsection{Key Applications}
+NIF demonstrates particular utility in several key areas:
 
 \begin{itemize}
-    \item \textbf{Coordinate Encoding:} Spatial coordinates are processed through a positional encoding layer to capture high-frequency details
-    \item \textbf{Parameter Network:} Processes temporal or physical parameters to generate context-specific weights
-    \item \textbf{Target Network:} A main network that maps encoded coordinates to field values using dynamically generated weights
-    \item \textbf{Skip Connections:} Direct pathways between layers to preserve both high and low-frequency information
+    \item \textbf{Parametric Surrogate Modeling:} Efficient representation of PDE solutions across parameter spaces
+    \item \textbf{Multi-scale Data:} Effective handling of problems with multiple spatial and temporal scales
+    \item \textbf{Sparse Sensing:} Reconstruction of full fields from limited sensor measurements
+    \item \textbf{Modal Analysis:} Extraction of coherent structures from complex flows
 \end{itemize}
 
-\subsection{HyperNetworks}
-A key component of NIFs is the use of HyperNetworks \cite{hypernetworks2016}, which generate weights for target networks. We explore two main architectures:
+\subsection{Implementation Approaches}
+This paper examines three distinct implementation approaches for NIF:
 
 \begin{itemize}
-    \item \textbf{ShortCut HyperNetwork:} 
+    \item \textbf{Upstream Reference:} A baseline TensorFlow implementation based on the original paper
+    \item \textbf{PyTorch Implementation:} Leveraging PyTorch's dynamic computation graphs and autograd functionality
+    \item \textbf{TensorFlow Functional:} Utilizing TensorFlow's Functional API for improved composability
+\end{itemize}
+
+Each approach offers different trade-offs in terms of:
+
+\begin{itemize}
+    \item \textbf{Performance:} Computational efficiency and memory usage
+    \item \textbf{Maintainability:} Code organization and debugging capabilities
+    \item \textbf{Flexibility:} Ease of modification and extension
+    \item \textbf{Learning Curve:} Accessibility to new users
+\end{itemize}
+
+\subsection{Paper Organization}
+The remainder of this paper is organized as follows:
+
+\begin{itemize}
+    \item Section II presents the results from the original NIF study
+    \item Section III provides a detailed comparison of the three implementations
+    \item Section IV discusses practical considerations and trade-offs
+    \item Section V concludes with recommendations and future directions
+\end{itemize}
+
+Through this comparative study, we aim to provide practical insights for researchers and practitioners implementing NIF in their own applications, while highlighting the strengths and limitations of each approach.
+
+\section{Results from Original NIF Study}
+\subsection{Benchmark Applications and Results}
+The original NIF framework demonstrated significant advantages across several key applications:
+
+\begin{itemize}
+    \item \textbf{Parametric Kuramoto-Sivashinsky (K-S) Equation:}
     \begin{itemize}
-        \item Utilizes direct skip connections for efficient parameter usage
-        \item Reduces the number of generated parameters through weight sharing
-        \item Enables faster convergence through direct gradient flow
-        \item Particularly effective for low-frequency components
+        \item NIF achieved 40\% better generalization in RMSE compared to standard MLPs
+        \item Required only half the training data for equivalent accuracy
+        \item Demonstrated superior parameter efficiency, achieving 50\% lower testing error with the same number of parameters
     \end{itemize}
     
-    \item \textbf{SIREN HyperNetwork:} 
+    \item \textbf{Rayleigh-Taylor Instability:}
     \begin{itemize}
-        \item Employs sinusoidal activations for better frequency fitting \cite{siren2020}
-        \item Provides smooth, continuous representations across the domain
-        \item Handles high-frequency patterns more effectively
-        \item Maintains consistent gradient magnitudes throughout the network
+        \item Outperformed both SVD and CAE in nonlinear dimensionality reduction
+        \item Achieved 10x to 50\% error reduction compared to traditional methods
+        \item Successfully handled adaptive mesh refinement without preprocessing
+    \end{itemize}
+    
+    \item \textbf{3D Homogeneous Isotropic Turbulence:}
+    \begin{itemize}
+        \item Successfully compressed 2 million cell turbulent flow data
+        \item Preserved important statistical properties including PDFs of velocity and derivatives
+        \item Achieved 97\% reduction in storage requirements while maintaining accuracy
+    \end{itemize}
+    
+    \item \textbf{Spatial Query Efficiency:}
+    \begin{itemize}
+        \item 30\% reduction in CPU time for spatial queries
+        \item 26\% reduction in memory consumption
+        \item Maintained equivalent accuracy to baseline methods
+    \end{itemize}
+    
+    \item \textbf{Sea Surface Temperature Reconstruction:}
+    \begin{itemize}
+        \item 34\% improvement over POD-QDEIM in sparse sensing applications
+        \item Better generalization on 15-year prediction horizon
+        \item Successful capture of small-scale temperature variations
     \end{itemize}
 \end{itemize}
 
-The choice between these architectures depends on the specific requirements of the problem:
-\begin{itemize}
-    \item ShortCut networks excel in computational efficiency and simple patterns
-    \item SIREN networks better handle complex, high-frequency phenomena but require more careful training
-    \item Both architectures can be combined with various optimization strategies for specific use cases
-\end{itemize}
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.8\linewidth]{hypernetwork_diagram}
-    \caption{Architecture of the Neural Implicit Function with HyperNetwork. The HyperNetwork generates weights for the target network based on temporal parameters, while the target network processes spatial coordinates to produce the output.}
-    \label{fig:architecture}
-\end{figure}
-
-\section{Methodology}
-\subsection{Implementation Approaches}
-We developed three distinct implementations of NIFs, each following different design philosophies and facing unique technical challenges:
-
-\subsubsection{Upstream Implementation}
-The reference implementation follows traditional object-oriented design principles, providing a baseline for comparison. However, significant modifications were required to ensure compatibility with current TensorFlow versions:
+\subsection{Technical Innovations}
+The success of NIF can be attributed to several key technical innovations:
 
 \begin{itemize}
-    \item \textbf{API Changes:} The original implementation used deprecated TensorFlow 1.x APIs, requiring extensive updates to TensorFlow 2.x patterns
-    \item \textbf{Graph Execution:} Migration from static computational graphs to eager execution required restructuring the model architecture
-    \item \textbf{Layer Compatibility:} Several custom layers needed reimplementation to work with the current Keras API
-    \item \textbf{Variable Scope Management:} The original variable scope management was incompatible with TensorFlow 2.x, requiring a complete redesign of weight sharing mechanisms
-\end{itemize}
-
-Key modifications included:
-\begin{itemize}
-    \item Replacing \texttt{tf.get\_variable} calls with proper Keras layer initialization
-    \item Restructuring the model to use Keras subclassing instead of low-level TensorFlow operations
-    \item Implementing proper gradient tape management for automatic differentiation
-    \item Modernizing the training loop to use tf.function decorators for performance
-\end{itemize}
-
-\subsubsection{PyTorch Implementation}
-Our PyTorch-based implementation leverages the framework's native features, particularly its automatic differentiation and tensor operations. This implementation focused on:
-
-\begin{itemize}
-    \item \textbf{Dynamic Computation:} Utilizing PyTorch's dynamic computational graphs for flexible model architecture
-    \item \textbf{Module Design:} Implementing custom \texttt{nn.Module} classes for both the HyperNetwork and target network
-    \item \textbf{Memory Management:} Careful handling of gradient computation and tensor operations to optimize memory usage
-    \item \textbf{Batching Strategy:} Efficient implementation of spatial and temporal coordinate batching
-\end{itemize}
-
-\subsubsection{TensorFlow Functional API}
-The TensorFlow Functional API implementation adopts a functional programming paradigm, emphasizing immutability and composability. Key technical aspects include:
-
-\begin{itemize}
-    \item \textbf{Pure Functions:} Implementation of stateless network components
-    \item \textbf{Weight Generation:} Explicit weight management through functional transformations
-    \item \textbf{Computation Flow:} Clear separation of coordinate processing and weight generation pipelines
-    \item \textbf{Optimization:} Leveraging TensorFlow's XLA compilation for improved performance
-\end{itemize}
-
-\subsection{Technical Challenges}
-During implementation, several significant challenges were encountered:
-
-\begin{table}[t]
-    \caption{Implementation Challenges and Solutions}
-    \label{tab:challenges}
-    \centering
-    \begin{tabular}{|p{2.5cm}|p{2.5cm}|p{2.5cm}|}
-        \hline
-        \textbf{Challenge} & \textbf{Impact} & \textbf{Solution} \\
-        \hline
-        TF 1.x to 2.x Migration & Model architecture breakdown & Complete rewrite using Keras API \\
-        \hline
-        Memory Management & OOM errors in high-freq cases & Gradient checkpointing, batch size optimization \\
-        \hline
-        Weight Sharing & Inconsistent gradients & Custom gradient tape management \\
-        \hline
-        Training Stability & Convergence issues & Learning rate scheduling, gradient clipping \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\subsection{Performance Optimization}
-Each implementation required specific optimizations:
-
-\begin{itemize}
-    \item \textbf{Upstream:}
+    \item \textbf{SIREN Integration:}
     \begin{itemize}
-        \item Implementation of custom training loops with \texttt{@tf.function}
-        \item Careful management of variable scope to prevent memory leaks
-        \item Batch size optimization for different frequency cases
+        \item Use of $\omega_0$-scaled sine activation functions
+        \item Special initialization scheme for weights and biases
+        \item ResNet-like skip connections for improved training stability
     \end{itemize}
-    \item \textbf{PyTorch:}
+    
+    \item \textbf{Hypernetwork Structure:}
     \begin{itemize}
-        \item Use of \texttt{torch.compile} for improved performance
-        \item Implementation of custom autograd functions
-        \item Memory-efficient gradient computation
+        \item Efficient decoupling of spatial and temporal/parametric complexity
+        \item Linear bottleneck layer for dimensionality reduction
+        \item Adaptive parameter generation for ShapeNet
     \end{itemize}
-    \item \textbf{TensorFlow Functional API:}
+    
+    \item \textbf{Training Optimizations:}
     \begin{itemize}
-        \item XLA compilation for improved performance
+        \item Small learning rates (10$^{-4}$ to 10$^{-5}$)
+        \item Large batch sizes for stability
+        \item L4 optimizer for small-batch scenarios
+    \end{itemize}
+\end{itemize}
+
+\subsection{Computational Requirements}
+The original implementation demonstrated practical computational demands:
+
+\begin{itemize}
+    \item \textbf{Hardware Requirements:}
+    \begin{itemize}
+        \item Successfully ran on various GPU configurations (P100, RTX 2080, A6000)
+        \item Scaled effectively with multi-GPU setups
+        \item Memory requirements ranged from 12GB to 48GB depending on problem size
+    \end{itemize}
+    
+    \item \textbf{Training Characteristics:}
+    \begin{itemize}
+        \item Convergence typically achieved within 800-10,000 epochs
+        \item Batch sizes optimized for available GPU memory
+        \item Progressive learning of scales, from large to small structures
+    \end{itemize}
+\end{itemize}
+
+\section{Implementation Approaches}
+We developed three distinct implementations of Neural Implicit Flow, each with its own architectural considerations and technical challenges. This section details the implementation specifics of each approach.
+
+\subsection{Upstream Reference Implementation}
+The reference implementation from the original paper served as our baseline but required significant modifications to work with modern frameworks:
+
+\begin{itemize}
+    \item \textbf{TensorFlow Migration:} The original codebase used TensorFlow 1.x patterns, necessitating extensive updates:
+    \begin{itemize}
+        \item Conversion from static computational graphs to eager execution
+        \item Replacement of \texttt{tf.get\_variable} calls with Keras layer initialization
+        \item Implementation of proper gradient tape management
+    \end{itemize}
+    
+    \item \textbf{Code Organization:} We improved the structure by:
+    \begin{itemize}
+        \item Extracting common functionality into a base class
+        \item Standardizing the training loop with \texttt{@tf.function} decorators
+    \end{itemize}
+\end{itemize}
+
+\subsection{TensorFlow Functional API Implementation}
+Our TensorFlow Functional API implementation represents a complete redesign focusing on functional programming principles:
+\begin{itemize}
+    \item \textbf{Layer Architecture:} We implemented a hierarchical layer system:
+    \begin{itemize}
+        \item Base \texttt{HyperLayer} class for weight management:
+    \end{itemize}
+\end{itemize}
+        \begin{lstlisting}[language=Python, gobble=8]
+        class HyperLayer(tf.keras.layers.Layer):
+            def __init__(self, w_from, w_to, offset,
+                b_from, b_to):
+
+                self.w_from = w_from
+                self.w_to = w_to
+                self.b_from = offset + b_from
+                self.b_to = offset + b_to
+        \end{lstlisting}
+\begin{itemize}
+    \item[]
+    \begin{itemize}
+        \item Specialized implementations for Dense and SIREN layers
+        \item Custom initialization scheme for SIREN layers
+    \end{itemize}
+
+    \item \textbf{Network Structure:}
+    \begin{itemize}
+        \item ParameterNet:
+        \begin{verbatim}
+# First Layer -> Dense
+# Hidden Layers -> Shortcut/ResNet
+# Output -> Dense (with parameter dim)
+        \end{verbatim}
+        \item ShapeNet:
+        \begin{verbatim}
+# Input -> Dense/SIREN
+# Hidden -> Dense/SIREN
+# Output -> Dense/SIREN (no activation)
+        \end{verbatim}
+    \end{itemize}
+    
+    \item \textbf{Optimization Features:}
+    \begin{itemize}
+        \item XLA compilation support
         \item Efficient weight generation through vectorized operations
-        \item Optimized coordinate sampling strategies
+        \item Memory-efficient parameter handling
     \end{itemize}
 \end{itemize}
+
+\subsection{PyTorch Implementation}
+The PyTorch implementation follows the architectural patterns established in the Functional API version while leveraging PyTorch-specific features:
+
+\begin{itemize}
+    \item \textbf{Core Components:}
+    \begin{itemize}
+        \item Flexible activation mapping system:
+        \begin{verbatim}
+def get_activation(name: str) -> nn.Module:
+    if name.lower() == 'relu': return nn.ReLU()
+    elif name.lower() == 'tanh': return nn.Tanh()
+    elif name.lower() == 'swish': return nn.SiLU()
+        \end{verbatim}
+        \item Static weight layers for efficient parameter handling:
+        \begin{verbatim}
+class StaticDense(nn.Module):
+    def forward(self, inputs):
+        x, params = inputs
+        w = params[:, self.w_from:self.w_to]
+        return self.activation(torch.matmul(x, w) + self.bias)
+        \end{verbatim}
+    \end{itemize}
+    
+    \item \textbf{Training Infrastructure:}
+    \begin{itemize}
+        \item Comprehensive training logger with visualization support
+        \item Automated checkpoint management
+        \item Performance optimization through \texttt{torch.compile}
+    \end{itemize}
+    
+    \item \textbf{Implementation Trade-offs:}
+    \begin{itemize}
+        \item Focus on simpler model architectures due to performance considerations
+        \item Enhanced framework integration through PyTorch's native features
+        \item Improved development experience with dynamic computation graphs
+    \end{itemize}
+\end{itemize}
+
+Each implementation approach offers distinct advantages and challenges, which we evaluate in detail in the following sections. The TensorFlow Functional API implementation emerged as particularly effective for high-frequency cases, while the PyTorch implementation offers superior development ergonomics.
 
 \section{Experimental Setup}
 \subsection{Test Cases}
@@ -198,11 +300,11 @@ We evaluate our implementations on two distinct test cases, illustrated in Figur
 \begin{figure}[t]
     \centering
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{low_frequency}
+        \includegraphics[width=\linewidth]{../../results/functional-api/low-frequency/vis}
         \caption{Low-frequency wave}
     \end{subfigure}
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{high_frequency}
+        \includegraphics[width=\linewidth]{../../results/functional-api/high-frequency/vis}
         \caption{High-frequency wave}
     \end{subfigure}
     \caption{Test cases used for evaluation. (a) Simple periodic function serving as a baseline. (b) Complex wave function testing the model's capacity to capture high-frequency patterns.}
@@ -244,24 +346,24 @@ Our experiments reveal distinct performance characteristics across implementatio
 \begin{figure}[t]
     \centering
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{functional_vis_low}
+        \includegraphics[width=\linewidth]{../../results/functional-api/low-frequency/vis}
         \caption{Low-frequency prediction}
     \end{subfigure}
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{functional_vis_high}
+        \includegraphics[width=\linewidth]{../../results/functional-api/high-frequency/vis}
         \caption{High-frequency prediction}
     \end{subfigure}
     
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{upstream_loss}
+        \includegraphics[width=\linewidth]{../../results/upstream/simple_1d_wave/loss}
         \caption{Upstream loss}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{torch_loss}
+        \includegraphics[width=\linewidth]{../../results/pytorch/loss}
         \caption{PyTorch loss}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{functional_loss_low}
+        \includegraphics[width=\linewidth]{../../results/functional-api/low-frequency/loss}
         \caption{TensorFlow Functional API loss}
     \end{subfigure}
     \caption{Results comparison across implementations. (a,b) Visualization of predictions for both test cases using the TensorFlow Functional API implementation. (c-e) Training loss curves for each implementation approach.}

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+set -e
+trap 'rm -f main.{aux,bbl,blg,log,out,pdf}' EXIT
+
 pdflatex main.tex
-pdflatex main.tex # Run twice to resolve references
+bibtex main
+pdflatex main.tex
 mv main.pdf ../paper.pdf
-rm main.{aux,bbl,blg,log,out}

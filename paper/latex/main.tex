@@ -209,34 +209,36 @@ The reference implementation from the original paper~\cite{nif2023} served as ou
 \subsection{TensorFlow Functional API Implementation}
 Our TensorFlow Functional API implementation represents a complete redesign focusing on functional programming principles, building upon the theoretical foundations of neural fields~\cite{neural_fields2022}:
 \begin{itemize}
-    \item \textbf{Layer Architecture:} We implemented a hierarchical layer system:
-    \begin{lstlisting}[language=Python, gobble=8]
-    class HyperLayer(tf.keras.layers.Layer):
-        def __init__(self, weights_from, weights_to,
-            bias_offset, biases_from, biases_to):
+    \item \textbf{Layer Architecture:}
+    \begin{itemize}
+        \item  We implemented a hierarchical layer system:
+        \begin{lstlisting}[language=Python, gobble=8]
+        class HyperLayer(tf.keras.layers.Layer):
+            def __init__(self, weights_from, weights_to,
+                bias_offset, biases_from, biases_to):
 
-            self.weights_from = weights_from
-            self.weights_to = weights_to
-            self.biases_from = bias_offset + biases_from
-            self.biases_to = bias_offset + biases_to
-    \end{lstlisting}
-    \item Specialized implementations for Dense and SIREN layers
-    \item Custom initialization scheme for SIREN layers
-\end{itemize}
+                self.weights_from = weights_from
+                self.weights_to = weights_to
+                self.biases_from = bias_offset + biases_from
+                self.biases_to = bias_offset + biases_to
+        \end{lstlisting}
+        \item Specialized implementations for Dense and SIREN layers
+        \item Custom initialization scheme for SIREN layers
+    \end{itemize}
 
-\item \textbf{Network Structure:}
-\begin{verbatim}
+    \item \textbf{Network Structure:}
+    \begin{verbatim}
 # First Layer -> Dense
 # Hidden Layers -> Shortcut/ResNet
 # Output -> Dense (with parameter dim)
-\end{verbatim}
+    \end{verbatim}
 
-\item \textbf{Optimization Features:}
-\begin{itemize}
-    \item XLA compilation support
-    \item Efficient weight generation through vectorized operations
-    \item Memory-efficient parameter handling
-\end{itemize}
+    \item \textbf{Optimization Features:}
+    \begin{itemize}
+        \item XLA compilation support
+        \item Efficient weight generation through vectorized operations
+        \item Memory-efficient parameter handling
+    \end{itemize}
 \end{itemize}
 
 \subsection{PyTorch Implementation}

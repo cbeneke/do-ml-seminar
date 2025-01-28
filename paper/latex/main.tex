@@ -1,4 +1,4 @@
-\documentclass[10pt,journal,compsoc]{IEEEtran}
+\documentclass[10pt,journal,compsoc,onecolumn]{IEEEtran}
 
 \usepackage{graphicx}
 \usepackage{amsmath}
@@ -10,6 +10,8 @@
 \usepackage{hyperref}
 \usepackage{subcaption}
 \usepackage{listings}
+\usepackage{cleveref}
+\usepackage{float}
 
 \begin{document}
 
@@ -20,11 +22,11 @@
 \maketitle
 
 \begin{abstract}
-Neural Implicit Flow (NIF) was proposed as a powerful approach for representing continuous functions in various domains, particularly for spatio-temporal data modeled by PDEs. This paper presents a comparative study of three different implementations of NIFs: an upstream reference implementation, a PyTorch-based approach, and a TensorFlow Functional API design. We evaluate these implementations on both simple periodic and complex high-frequency wave functions, analyzing their performance, convergence characteristics, and implementation trade-offs. Our results demonstrate that while all implementations successfully model the target functions, they exhibit different strengths in terms of convergence speed, accuracy, and code maintainability. The TensorFlow Functional API implementation shows superior performance for high-frequency cases, achieving up to 4x better loss values compared to the baseline.
+Neural Implicit Flow (NIF)~\cite{nif2023} was proposed as a powerful approach for representing continuous functions in various domains, particularly for spatio-temporal data modeled by PDEs. This paper presents a comparative study of three different implementations of NIFs: an upstream reference implementation, a PyTorch-based approach, and a TensorFlow Functional API design. We evaluate these implementations on both simple periodic and complex high-frequency wave functions, analyzing their performance, convergence characteristics, and implementation trade-offs. Our results demonstrate that while all implementations successfully model the target functions, they exhibit different strengths in terms of convergence speed, accuracy, and code maintainability. The TensorFlow Functional API implementation shows superior performance for high-frequency cases, achieving up to 4x better loss values compared to the baseline.
 \end{abstract}
 
 \section{Introduction}
-High-dimensional spatio-temporal dynamics present significant challenges in scientific computing and engineering applications. While these systems can often be encoded in low-dimensional subspaces, existing dimensionality reduction techniques struggle with practical engineering challenges such as variable geometry, non-uniform grid resolution, and adaptive meshing. Neural Implicit Flow (NIF) has emerged as a promising solution to these challenges, offering a mesh-agnostic, low-rank representation framework for large-scale, parametric, spatial-temporal data.
+High-dimensional spatio-temporal dynamics present significant challenges in scientific computing and engineering applications. While these systems can often be encoded in low-dimensional subspaces, existing dimensionality reduction techniques struggle with practical engineering challenges such as variable geometry, non-uniform grid resolution, and adaptive meshing. Neural Implicit Flow (NIF)~\cite{nif2023} has emerged as a promising solution to these challenges, offering a mesh-agnostic, low-rank representation framework for large-scale, parametric, spatial-temporal data~\cite{neural_fields2022}.
 
 \subsection{Background and Motivation}
 Traditional approaches to dimensionality reduction include linear methods like Singular Value Decomposition (SVD) and nonlinear methods such as Convolutional Autoencoders (CAE). However, these methods face several limitations:
@@ -35,7 +37,7 @@ Traditional approaches to dimensionality reduction include linear methods like S
     \item \textbf{Expressiveness:} Linear methods struggle to capture complex nonlinear dynamics effectively
 \end{itemize}
 
-NIF addresses these limitations through a novel architecture consisting of two key components:
+NIF addresses these limitations through a novel architecture consisting of two key components~\cite{nif2023}:
 
 \begin{itemize}
     \item \textbf{ShapeNet:} A network that isolates and represents spatial complexity
@@ -43,7 +45,7 @@ NIF addresses these limitations through a novel architecture consisting of two k
 \end{itemize}
 
 \subsection{Neural Implicit Flow Architecture}
-The core innovation of NIF lies in its ability to decouple spatial complexity from other factors. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, NIF learns the mapping:
+The core innovation of NIF lies in its ability to decouple spatial complexity from other factors~\cite{nif2023}. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, NIF learns the mapping:
 
 \begin{equation}
     f_\theta: (\mathbf{x}, \mathbf{t}) \mapsto u(\mathbf{x}, \mathbf{t})
@@ -142,14 +144,14 @@ The original NIF framework demonstrated significant advantages across several ke
 The success of NIF can be attributed to several key technical innovations:
 
 \begin{itemize}
-    \item \textbf{SIREN Integration:}
+    \item \textbf{SIREN Integration:}~\cite{siren2020}
     \begin{itemize}
         \item Use of $\omega_0$-scaled sine activation functions
         \item Special initialization scheme for weights and biases
         \item ResNet-like skip connections for improved training stability
     \end{itemize}
     
-    \item \textbf{Hypernetwork Structure:}
+    \item \textbf{Hypernetwork Structure:}~\cite{hypernetworks2016}
     \begin{itemize}
         \item Efficient decoupling of spatial and temporal/parametric complexity
         \item Linear bottleneck layer for dimensionality reduction
@@ -184,10 +186,10 @@ The original implementation demonstrated practical computational demands:
 \end{itemize}
 
 \section{Implementation Approaches}
-We developed three distinct implementations of Neural Implicit Flow, each with its own architectural considerations and technical challenges. This section details the implementation specifics of each approach.
+We developed three distinct implementations of Neural Implicit Flow~\cite{nif2023}, each with its own architectural considerations and technical challenges. This section details the implementation specifics of each approach.
 
 \subsection{Upstream Reference Implementation}
-The reference implementation from the original paper served as our baseline but required significant modifications to work with modern frameworks:
+The reference implementation from the original paper~\cite{nif2023} served as our baseline but required significant modifications to work with modern frameworks:
 
 \begin{itemize}
     \item \textbf{TensorFlow Migration:} The original codebase used TensorFlow 1.x patterns, necessitating extensive updates:
@@ -205,75 +207,60 @@ The reference implementation from the original paper served as our baseline but 
 \end{itemize}
 
 \subsection{TensorFlow Functional API Implementation}
-Our TensorFlow Functional API implementation represents a complete redesign focusing on functional programming principles:
+Our TensorFlow Functional API implementation represents a complete redesign focusing on functional programming principles, building upon the theoretical foundations of neural fields~\cite{neural_fields2022}:
 \begin{itemize}
     \item \textbf{Layer Architecture:} We implemented a hierarchical layer system:
-    \begin{itemize}
-        \item Base \texttt{HyperLayer} class for weight management:
-    \end{itemize}
+    \begin{lstlisting}[language=Python, gobble=8]
+    class HyperLayer(tf.keras.layers.Layer):
+        def __init__(self, weights_from, weights_to,
+            bias_offset, biases_from, biases_to):
+
+            self.weights_from = weights_from
+            self.weights_to = weights_to
+            self.biases_from = bias_offset + biases_from
+            self.biases_to = bias_offset + biases_to
+    \end{lstlisting}
+    \item Specialized implementations for Dense and SIREN layers
+    \item Custom initialization scheme for SIREN layers
 \end{itemize}
-        \begin{lstlisting}[language=Python, gobble=8]
-        class HyperLayer(tf.keras.layers.Layer):
-            def __init__(self, w_from, w_to, offset,
-                b_from, b_to):
 
-                self.w_from = w_from
-                self.w_to = w_to
-                self.b_from = offset + b_from
-                self.b_to = offset + b_to
-        \end{lstlisting}
-\begin{itemize}
-    \item[]
-    \begin{itemize}
-        \item Specialized implementations for Dense and SIREN layers
-        \item Custom initialization scheme for SIREN layers
-    \end{itemize}
-
-    \item \textbf{Network Structure:}
-    \begin{itemize}
-        \item ParameterNet:
-        \begin{verbatim}
+\item \textbf{Network Structure:}
+\begin{verbatim}
 # First Layer -> Dense
 # Hidden Layers -> Shortcut/ResNet
 # Output -> Dense (with parameter dim)
-        \end{verbatim}
-        \item ShapeNet:
-        \begin{verbatim}
-# Input -> Dense/SIREN
-# Hidden -> Dense/SIREN
-# Output -> Dense/SIREN (no activation)
-        \end{verbatim}
-    \end{itemize}
-    
-    \item \textbf{Optimization Features:}
-    \begin{itemize}
-        \item XLA compilation support
-        \item Efficient weight generation through vectorized operations
-        \item Memory-efficient parameter handling
-    \end{itemize}
+\end{verbatim}
+
+\item \textbf{Optimization Features:}
+\begin{itemize}
+    \item XLA compilation support
+    \item Efficient weight generation through vectorized operations
+    \item Memory-efficient parameter handling
+\end{itemize}
 \end{itemize}
 
 \subsection{PyTorch Implementation}
-The PyTorch implementation follows the architectural patterns established in the Functional API version while leveraging PyTorch-specific features:
+The PyTorch implementation follows the architectural patterns established in the Functional API version while leveraging PyTorch-specific features, incorporating insights from both SIREN~\cite{siren2020} and HyperNetworks~\cite{hypernetworks2016}:
 
 \begin{itemize}
     \item \textbf{Core Components:}
     \begin{itemize}
         \item Flexible activation mapping system:
-        \begin{verbatim}
-def get_activation(name: str) -> nn.Module:
-    if name.lower() == 'relu': return nn.ReLU()
-    elif name.lower() == 'tanh': return nn.Tanh()
-    elif name.lower() == 'swish': return nn.SiLU()
-        \end{verbatim}
+        \begin{lstlisting}[language=Python, gobble=8]
+        def get_activation(name: str) -> nn.Module:
+            if name.lower() == 'relu': return nn.ReLU()
+            elif name.lower() == 'tanh': return nn.Tanh()
+            elif name.lower() == 'swish': return nn.SiLU()
+        \end{lstlisting}
+        
         \item Static weight layers for efficient parameter handling:
-        \begin{verbatim}
-class StaticDense(nn.Module):
-    def forward(self, inputs):
-        x, params = inputs
-        w = params[:, self.w_from:self.w_to]
-        return self.activation(torch.matmul(x, w) + self.bias)
-        \end{verbatim}
+        \begin{lstlisting}[language=Python, gobble=8]
+        class StaticDense(nn.Module):
+            def forward(self, inputs):
+                x, params = inputs
+                w = params[:, self.w_from:self.w_to]
+                return self.activation(torch.matmul(x, w) + self.bias)
+        \end{lstlisting}
     \end{itemize}
     
     \item \textbf{Training Infrastructure:}
@@ -295,7 +282,8 @@ Each implementation approach offers distinct advantages and challenges, which we
 
 \section{Experimental Setup}
 \subsection{Test Cases}
-We evaluate our implementations on two distinct test cases, illustrated in Figure \ref{fig:test_cases}:
+
+We evaluate our implementations on two distinct test cases, illustrated in Figure~\ref{fig:test_cases}:
 
 \begin{figure}[t]
     \centering

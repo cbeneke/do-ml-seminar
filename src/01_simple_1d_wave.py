@@ -1,21 +1,20 @@
 import contextlib
 import os
+from nif import base
 
-# NIF_IMPLEMENTATION="upstream"
-NIF_IMPLEMENTATION="functional"
-# NIF_IMPLEMENTATION="pytorch"
+NIF_IMPLEMENTATION = os.getenv("NIF_IMPLEMENTATION", "functional")
 
 if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
     import tensorflow as tf
     from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
-    from nif import base
+    from nif import basetf
 elif NIF_IMPLEMENTATION == "pytorch":
     import torch
     from nif.torch import utils
 else:
     raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
-enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, checkpt_epoch, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
+enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
 u, x, t, x0, c, omega, xx, tt = base.setup_example_base(NT, NX)
 dudx_1d, dudt_1d = base.get_derivative_data(x0, c, omega, xx, tt)
 
@@ -89,7 +88,7 @@ if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
 
     # Initialize callbacks
     scheduler_callback = tf.keras.callbacks.LearningRateScheduler(base.scheduler)
-    loss_callback = base.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+    loss_callback = basetf.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
     callbacks = [loss_callback, scheduler_callback]
 
     # Train model

@@ -3,6 +3,7 @@ import contextlib
 import os
 import tensorflow as tf
 from nif import base
+from nif import basetf
 
 # NIF_IMPLEMENTATION="upstream"
 NIF_IMPLEMENTATION="functional"
@@ -82,7 +83,7 @@ os.makedirs('./saved_weights', exist_ok=True)
 
 # Initialize callbacks
 scheduler_callback = tf.keras.callbacks.LearningRateScheduler(base.scheduler)
-loss_callback = base.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
+loss_callback = basetf.LossAndErrorPrintingCallback(nepoch, train_data, xx, tt, NT, NX)
 callbacks = [loss_callback, scheduler_callback]
 
 model.fit(train_dataset,  verbose=0,epochs=nepoch, callbacks=callbacks)

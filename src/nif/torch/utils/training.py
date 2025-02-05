@@ -69,7 +69,7 @@ class TrainingLogger:
             plt.semilogy(self.history_loss)
             plt.xlabel(f'epoch: per {self.print_figure_epoch} epochs')
             plt.ylabel('MSE loss')
-            plt.savefig('./loss.png')
+            plt.savefig('loss.pdf')
             plt.close()
             
             # Make predictions
@@ -102,7 +102,7 @@ class TrainingLogger:
             axs[0].set_title('true')
             axs[1].set_title('pred')
             axs[2].set_title('error')
-            plt.savefig('vis.png')
+            plt.savefig('vis.pdf')
             plt.close()
         
         if epoch % self.checkpt_epoch == 0 or epoch == self.n_epochs - 1:

@@ -2,7 +2,7 @@ import tensorflow as tf
 
 # HyperLayer is a base class for layers that utilise provided weights and biases
 class HyperLayer(tf.keras.layers.Layer):
-    def __init__(self, weights_from, weights_to, bias_offset, biases_from, biases_to, **kwargs):
+    def __init__(self, weights_from, weights_to, bias_offset, biases_from, biases_to, units, activation, **kwargs):
         super().__init__(**kwargs)
 
         self.weights_from = weights_from
@@ -10,6 +10,9 @@ class HyperLayer(tf.keras.layers.Layer):
 
         self.biases_from = bias_offset + biases_from
         self.biases_to = bias_offset + biases_to
+
+        self.units = units
+        self.activation = activation
 
         self.built = False
 

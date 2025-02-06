@@ -2,8 +2,8 @@
 
 DATE="$(date +%Y%m%d-%H%M)"
 ITERATIONS=${1-5}
-export DATASET="low-frequency"
-#export DATASET="high-frequency"
+#export DATASET="low-frequency"
+export DATASET="high-frequency"
 
 ## TF
 #source ~/.virtualenvs/nif-tf/bin/activate

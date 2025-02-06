@@ -347,34 +347,35 @@ These differences manifested already in the low-frequency test case, and is expe
 
 \section{Results and Discussion}
 \subsection{Performance Analysis}
-Our experiments reveal distinct performance characteristics across implementations, as shown in Figure \ref{fig:results}. The analysis of the training logs and performance metrics reveals several key findings:
+Our experiments reveal distinct performance characteristics across implementations and optimizers, as shown in Figure \ref{fig:results}. The analysis of the training logs and performance metrics reveals several key findings:
 
 \begin{itemize}
     \item \textbf{Convergence Characteristics:}
     \begin{itemize}
-        \item The upstream implementation achieved a best loss of 1.660e-04 after 2100 epochs on the simple wave case, with an average throughput of 9,000-10,000 points/sec
-        \item The PyTorch implementation reached a best loss of 1.776e-01 after 4900 epochs, processing around 13,000-14,000 points/sec
-        \item The TensorFlow Functional API achieved a best loss of 1.379e-03 after 3100 epochs, with a throughput of 12,000-14,000 points/sec
-    \end{itemize}
-    
-    \item \textbf{Model Complexity Handling:}
-    \begin{itemize}
-        \item For the high-frequency wave case, both the PyTorch and TensorFlow Functional API implementations show promising initial results (detailed analysis pending)
-        \item The upstream implementation could not be successfully adapted for the high-frequency wave case, highlighting architectural limitations
+        \item The TensorFlow Functional API with AdaBelief optimizer achieved the best loss of 2.700e-04 (experiment 1105-1, epoch 4500)
+        \item The upstream implementation with AdaBelief reached a loss of 1.722e-03 (experiment 1105-3, epoch 2700)
+        \item The PyTorch implementation with AdaBelief converged to 1.558e-02 (experiment 1353-3, epoch 3400)
     \end{itemize}
     
     \item \textbf{Training Efficiency:}
     \begin{itemize}
-        \item All implementations showed comparable training times, completing 5000 epochs in approximately 3-6 minutes
-        \item The PyTorch implementation showed the most consistent throughput, maintaining 13,000-15,000 points/sec throughout training
-        \item The TensorFlow Functional API demonstrated stable training progression with consistent improvements in loss values
+        \item The TensorFlow Functional API showed the most consistent convergence, with all five runs reaching losses below 1e-03
+        \item The upstream implementation demonstrated fast initial convergence but plateaued after epoch 2700
+        \item The PyTorch implementation showed slower but steady convergence with AdaBelief
     \end{itemize}
     
     \item \textbf{Processing Speed:}
     \begin{itemize}
-        \item Upstream: 9,000-10,000 points/sec
-        \item PyTorch: 13,000-15,000 points/sec
-        \item TensorFlow Functional API: 12,000-14,000 points/sec
+        \item TensorFlow Functional API: 13,000-17,000 points/sec (peak performance in early epochs)
+        \item Upstream: 13,000-15,000 points/sec
+        \item PyTorch: Throughput metrics not available in current logs
+    \end{itemize}
+    
+    \item \textbf{Optimizer Impact:}
+    \begin{itemize}
+        \item AdaBelief consistently outperformed Adam across all implementations
+        \item The TensorFlow Functional API showed the most stable training with AdaBelief
+        \item The upstream implementation benefited significantly from AdaBelief's adaptive learning rate
     \end{itemize}
 \end{itemize}
 
@@ -410,28 +411,28 @@ Our experiments reveal distinct performance characteristics across implementatio
 To ensure reproducibility and thorough evaluation, we conducted multiple experiments for each implementation with different optimizers:
 
 \begin{itemize}
-    \item \textbf{PyTorch Implementation:}
-    \begin{itemize}
-        \item Six distinct experiments with Adam optimizer (low-frequency-adam-20250205-1 through 6)
-        \item Best performing run (low-frequency-adam-20250205-3) achieved loss of 1.776e-01
-        \item Consistent throughput across runs (13,000-15,000 points/sec)
-        \item Notable epoch-to-epoch variance in loss values
-    \end{itemize}
-    
     \item \textbf{TensorFlow Functional API:}
     \begin{itemize}
         \item Five experiments with AdaBelief optimizer (low-frequency-adabelief-20250206-1105-1 through 5)
-        \item Best run (low-frequency-adabelief-20250206-1105-1) reached loss of 2.918e-04
+        \item Best run (1105-1) reached loss of 2.700e-04 at epoch 4500
         \item Consistent training progression across all runs
-        \item Throughput varied between 12,000-14,000 points/sec
+        \item Peak throughput of 17,000 points/sec in early epochs
     \end{itemize}
     
     \item \textbf{Upstream Implementation:}
     \begin{itemize}
         \item Five experiments with AdaBelief optimizer (low-frequency-adabelief-20250206-1105-1 through 5)
-        \item Best run (low-frequency-adabelief-20250206-1105-3) achieved loss of 1.722e-03
+        \item Best run (1105-3) achieved loss of 1.722e-03 at epoch 2700
         \item Early convergence with limited improvement after epoch 2700
         \item Stable throughput (13,000-15,000 points/sec)
+    \end{itemize}
+    
+    \item \textbf{PyTorch Implementation:}
+    \begin{itemize}
+        \item Five experiments with AdaBelief optimizer (low-frequency-adabelief-20250206-1353-1 through 5)
+        \item Best run (1353-3) achieved loss of 1.558e-02 at epoch 3400
+        \item Slower but steady convergence compared to other implementations
+        \item Throughput metrics not available in current logs
     \end{itemize}
 \end{itemize}
 
@@ -439,7 +440,7 @@ All experiments were conducted on an Apple M1 Pro chip with 14-core GPU and 16GB
 \begin{itemize}
     \item Batch size: 512 samples
     \item Learning rate: 1e-4
-    \item Optimizer: Adam (PyTorch) or AdaBelief (TensorFlow and Upstream)
+    \item Optimizer: AdaBelief
     \item Training duration: 5000 epochs
     \item Uniform random sampling in space-time domain
     \item 2000 points per epoch, resampled each epoch

@@ -36,7 +36,8 @@ class TrainingLogger:
             level=logging.INFO,
             format='%(message)s'
         )
-        
+
+    def on_epoch_begin(self, epoch: int):
         self.time_start = time.time()
 
     def log_progress(self, model: torch.nn.Module, epoch: int, loss: float):
@@ -49,10 +50,13 @@ class TrainingLogger:
         """
         tnow = time.time()
         time_end = tnow - self.time_start
-        self.time_start = tnow  # Reset for next epoch
+        
+        # Calculate points/sec (512 points per epoch)
+        points_per_sec = 512 / time_end if time_end > 0 else 0
         
         logging.info(
             f"Epoch {epoch:6d}: avg.loss pe = {loss:4.3e}, "
+            f"points/sec = {points_per_sec:8.2f}, "
             f"time elapsed = {(tnow - self.train_begin_time) / 3600.0:4.3f} hours"
         )
         self.history_loss.append(loss)
@@ -170,6 +174,7 @@ def train_model(
     # Training loop
     history = []
     for epoch in range(n_epochs):
+        logger.on_epoch_begin(epoch)
         model.train()
         total_loss = 0.0
         num_batches = 0

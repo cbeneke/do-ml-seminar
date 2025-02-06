@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 from torch.amp import autocast, GradScaler
 
 from nif.torch import utils
-from nif.torch.layers import StaticDense, ResNet, Shortcut
+from nif.torch.layers import StaticDense, StaticSIREN, ResNet, Shortcut
 
 class MixedPrecisionPolicy:
     """PyTorch equivalent of tf.keras.mixed_precision.Policy"""
@@ -103,8 +103,10 @@ class NIF(nn.Module):
         """Build the shape network with static weights"""
         layers: List[nn.Module] = []
         
+        StaticLayer = StaticDense if self.cfg_shape_net["activation"] != 'sine' else StaticSIREN
+
         # First layer
-        layers.append(StaticDense(
+        layers.append(StaticLayer(
             units=self.cfg_shape_net["units"],
             activation=utils.get_activation(self.cfg_shape_net["activation"]),
             weights_from=0,
@@ -121,7 +123,7 @@ class NIF(nn.Module):
             weights_to = (self.cfg_shape_net["input_dim"] * self.cfg_shape_net["units"] + 
                          (i + 1) * self.cfg_shape_net["units"]**2)
             
-            layers.append(StaticDense(
+            layers.append(StaticLayer(
                 units=self.cfg_shape_net["units"],
                 activation=utils.get_activation(self.cfg_shape_net["activation"]),
                 weights_from=weights_from,
@@ -137,7 +139,7 @@ class NIF(nn.Module):
         weights_to = (weights_from + 
                      self.cfg_shape_net["output_dim"] * self.cfg_shape_net["units"])
         
-        layers.append(StaticDense(
+        layers.append(StaticLayer(
             units=self.cfg_shape_net["output_dim"],
             activation=None,
             weights_from=weights_from,

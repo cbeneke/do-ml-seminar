@@ -1,9 +1,9 @@
-import contextlib
 import os
 from nif import base
 
 NIF_IMPLEMENTATION = os.getenv("NIF_IMPLEMENTATION", "functional")
 OPTIMIZER = os.getenv("OPTIMIZER", "adam")
+DATASET = os.getenv("DATASET", "low-frequency")
 
 if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
     import tensorflow as tf
@@ -26,23 +26,48 @@ if NIF_IMPLEMENTATION == "upstream":
 elif NIF_IMPLEMENTATION == "functional":
     import nif.functional as nif
 
-cfg_shape_net = {
-    "connectivity": 'full',
-    "input_dim": 1,
-    "output_dim": 1,
-    "units": 30,
-    "nlayers": 2,
-    "activation": 'swish',
-}
-cfg_parameter_net = {
-    "input_dim": 1,
-    "latent_dim": 1,
-    "units": 30,
-    "nlayers": 2,
-    "activation": 'swish',
-}
+if DATASET == "low-frequency":
+    cfg_shape_net = {
+        "connectivity": 'full',
+        "input_dim": 1,
+        "output_dim": 1,
+        "units": 30,
+        "nlayers": 2,
+        "activation": 'swish',
+    }
+    cfg_parameter_net = {
+        "input_dim": 1,
+        "latent_dim": 1,
+        "units": 30,
+        "nlayers": 2,
+        "activation": 'swish',
+    }
+elif DATASET == "high-frequency":
+    cfg_shape_net = {
+        "use_resblock": False,
+        "connectivity": 'full',
+        "input_dim": 1,
+        "output_dim": 1,
+        "units": 30,
+        "nlayers": 2,
+        "weight_init_factor": 0.01,
+        "omega_0": 30.0,
+        "activation": 'sine'
+    }
+    cfg_parameter_net = {
+        "use_resblock": False,
+        "input_dim": 1,
+        "latent_dim": 1,
+        "units": 30,
+        "nlayers": 2,
+        "activation": 'swish'
+    }
+else:
+    raise ValueError(f"Invalid dataset: {DATASET}")
 
 if NIF_IMPLEMENTATION == "upstream":
+    if DATASET == "high-frequency":
+        raise ValueError(f"Upstream implementation does not support high-frequency dataset")
     import nif.upstream as nif
 elif NIF_IMPLEMENTATION == "functional":
     import nif.functional as nif
@@ -52,9 +77,16 @@ else:
     raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
     
 
-from nif.data import TravelingWave
-tw = TravelingWave()
-train_data = tw.data
+if DATASET == "low-frequency":
+    from nif.data import TravelingWave
+    tw = TravelingWave()
+    train_data = tw.data
+elif DATASET == "high-frequency":
+    from nif.data import TravelingWaveHighFreq
+    tw = TravelingWaveHighFreq()
+    train_data = tw.data
+else:
+    raise ValueError(f"Invalid dataset: {DATASET}")
 
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)

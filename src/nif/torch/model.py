@@ -52,8 +52,7 @@ class NIF(nn.Module):
         self.parameter_net = self._build_parameter_net()
         
         # Move model to GPU if available and set dtype
-        #self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.device = 'cpu'
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device, dtype=self.policy.variable_dtype)
     
     def _build_parameter_net(self) -> nn.Module:

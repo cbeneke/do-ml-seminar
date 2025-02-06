@@ -111,9 +111,22 @@ elif NIF_IMPLEMENTATION == "pytorch":
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     elif OPTIMIZER == "adabelief":
         from nif.torch.optimizers import AdaBeliefOptimizer
-        optimizer = AdaBeliefOptimizer(model.parameters(), lr=lr)
+        optimizer = AdaBeliefOptimizer(
+            model.parameters(),
+            lr=lr,
+            betas=(0.9, 0.999),
+            eps=1e-14,
+            weight_decay=0.0,
+            rectify=True,
+            amsgrad=False,
+            centralize_gradients=True
+        )
     else:
         raise ValueError(f"Invalid optimizer: {OPTIMIZER}")
+    
+    # Move model to appropriate device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
     
     train_loader = torch.utils.data.DataLoader(
         train_dataset,

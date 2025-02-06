@@ -3,12 +3,29 @@ import torch
 from torch.optim.optimizer import Optimizer
 
 
+def centralize_gradient(x, gc_axis=0):
+    """Centralizes the gradient.
+    
+    Args:
+        x: A gradient tensor
+        gc_axis: The axis to compute mean over for gradient centralization
+    """
+    return x - x.mean(dim=tuple(range(gc_axis)) + tuple(range(gc_axis + 1, len(x.shape))), keepdim=True)
+
+
 class AdaBeliefOptimizer(Optimizer):
     """
-    Implementation of AdaBelief optimizer.
+    Implementation of AdaBelief optimizer with gradient centralization.
     
     AdaBelief Optimizer: Adapting stepsizes by the belief in observed gradients
     (https://arxiv.org/abs/2010.07468)
+    
+    This implementation includes:
+    - Gradient centralization
+    - Proper bias correction
+    - AMSGrad variant
+    - Rectification option
+    - Learning rate warmup and decay
     
     Arguments:
         params (iterable): iterable of parameters to optimize or dicts defining parameter groups
@@ -24,10 +41,12 @@ class AdaBeliefOptimizer(Optimizer):
         total_steps (int, optional): total number of training steps for warmup (default: 0)
         warmup_proportion (float, optional): proportion of warmup steps (default: 0.1)
         min_lr (float, optional): minimum learning rate after warmup (default: 0.0)
+        centralize_gradients (bool, optional): whether to use gradient centralization (default: True)
     """
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-14,
                  weight_decay=0, rectify=True, amsgrad=False, sma_threshold=5.0,
-                 total_steps=0, warmup_proportion=0.1, min_lr=0.0):
+                 total_steps=0, warmup_proportion=0.1, min_lr=0.0,
+                 centralize_gradients=True):
         if not 0.0 <= lr:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
@@ -44,7 +63,7 @@ class AdaBeliefOptimizer(Optimizer):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay,
                        rectify=rectify, amsgrad=amsgrad, sma_threshold=sma_threshold,
                        total_steps=total_steps, warmup_proportion=warmup_proportion,
-                       min_lr=min_lr, step=0)
+                       min_lr=min_lr, centralize_gradients=centralize_gradients)
         super(AdaBeliefOptimizer, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -52,6 +71,7 @@ class AdaBeliefOptimizer(Optimizer):
         for group in self.param_groups:
             group.setdefault('amsgrad', False)
             group.setdefault('rectify', True)
+            group.setdefault('centralize_gradients', True)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -70,10 +90,14 @@ class AdaBeliefOptimizer(Optimizer):
             for p in group['params']:
                 if p.grad is None:
                     continue
-                grad = p.grad
                 
+                grad = p.grad
                 if grad.is_sparse:
                     raise RuntimeError('AdaBelief does not support sparse gradients')
+
+                # Apply gradient centralization for Conv/FC layers
+                if group['centralize_gradients'] and len(grad.shape) > 1:
+                    grad = centralize_gradient(grad)
 
                 state = self.state[p]
 
@@ -82,10 +106,10 @@ class AdaBeliefOptimizer(Optimizer):
                     state['step'] = 0
                     # Exponential moving average of gradient values
                     state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
-                    # Exponential moving average of squared gradient values
+                    # Exponential moving average of squared gradient differences
                     state['exp_avg_var'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     if group['amsgrad']:
-                        # Maintains max of all exp. moving avg. of sq. grad. values
+                        # Maintains max of all exp. moving avg. of sq. grad. differences
                         state['max_exp_avg_var'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
                 # Get parameters
@@ -112,49 +136,48 @@ class AdaBeliefOptimizer(Optimizer):
                 else:
                     lr_t = group['lr']
 
-                # Decay the first and second moment running average coefficient
+                # Update first moment estimate (momentum)
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                
+                # Update second moment estimate (variance)
                 grad_residual = grad - exp_avg
                 exp_avg_var.mul_(beta2).addcmul_(grad_residual, grad_residual, value=1 - beta2).add_(group['eps'])
 
+                # Bias correction
+                exp_avg_corrected = exp_avg.div(bias_correction1)
+                
                 if group['amsgrad']:
-                    torch.max(max_exp_avg_var, exp_avg_var, out=max_exp_avg_var)
-                    denom = (max_exp_avg_var.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    torch.maximum(max_exp_avg_var, exp_avg_var, out=max_exp_avg_var)
+                    denom = max_exp_avg_var.sqrt().div_(math.sqrt(bias_correction2)).add_(group['eps'])
                 else:
-                    denom = (exp_avg_var.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    denom = exp_avg_var.sqrt().div_(math.sqrt(bias_correction2)).add_(group['eps'])
 
                 # Compute SMA
                 beta2_t = beta2 ** state['step']
                 sma_inf = 2.0 / (1.0 - beta2) - 1.0
                 sma_t = sma_inf - 2.0 * state['step'] * beta2_t / (1.0 - beta2_t)
 
-                # Compute r_t (using torch operations for numerical stability)
-                sma_t_tensor = torch.tensor(sma_t, dtype=torch.float32, device=p.device)
-                sma_inf_tensor = torch.tensor(sma_inf, dtype=torch.float32, device=p.device)
-                
-                r_t_numerator = (sma_t_tensor - 4.0).clamp(min=0.0)
-                r_t_denominator = (sma_inf_tensor - 4.0).clamp(min=group['eps'])
-                r_t_a = r_t_numerator / r_t_denominator
-                
-                r_t_numerator = (sma_t_tensor - 2.0).clamp(min=0.0)
-                r_t_denominator = (sma_inf_tensor - 2.0).clamp(min=group['eps'])
-                r_t_b = r_t_numerator / r_t_denominator
-                
-                r_t = torch.sqrt(r_t_a * r_t_b * sma_inf_tensor / sma_t_tensor.clamp(min=group['eps']))
+                # Compute rectification term
+                if sma_t > 4.0:  # Prevents taking sqrt of negative number
+                    r_t = math.sqrt(
+                        ((sma_t - 4.0) * (sma_t - 2.0) * sma_inf)
+                        / ((sma_inf - 4.0) * (sma_inf - 2.0) * sma_t)
+                    )
+                else:
+                    r_t = 1.0
 
                 # Update parameters
-                step_size = lr_t / bias_correction1
                 if group['rectify']:
                     if sma_t >= group['sma_threshold']:
-                        r_t = r_t * exp_avg / denom
+                        update = r_t * exp_avg_corrected / denom
                     else:
-                        r_t = exp_avg
+                        update = exp_avg_corrected
                 else:
-                    r_t = exp_avg / denom
+                    update = exp_avg_corrected / denom
 
                 if group['weight_decay'] != 0:
-                    r_t.add_(p, alpha=group['weight_decay'])
+                    update.add_(p, alpha=group['weight_decay'])
 
-                p.add_(r_t, alpha=-step_size)
+                p.add_(update, alpha=-lr_t)
 
         return loss 

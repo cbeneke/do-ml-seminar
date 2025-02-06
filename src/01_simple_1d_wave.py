@@ -3,6 +3,7 @@ import os
 from nif import base
 
 NIF_IMPLEMENTATION = os.getenv("NIF_IMPLEMENTATION", "functional")
+OPTIMIZER = os.getenv("OPTIMIZER", "adam")
 
 if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
     import tensorflow as tf
@@ -14,7 +15,7 @@ elif NIF_IMPLEMENTATION == "pytorch":
 else:
     raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
-enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
+enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
 u, x, t, x0, c, omega, xx, tt = base.setup_example_base(NT, NX)
 dudx_1d, dudt_1d = base.get_derivative_data(x0, c, omega, xx, tt)
 
@@ -41,14 +42,6 @@ cfg_parameter_net = {
     "activation": 'swish',
 }
 
-if enable_mixed_precision:
-    mixed_policy = "mixed_float16"
-    # we might need this for `model.fit` to automatically do loss scaling
-    policy = nif.mixed_precision.Policy(mixed_policy)
-    nif.mixed_precision.set_global_policy(policy)
-else:
-    mixed_policy = 'float32'
-
 if NIF_IMPLEMENTATION == "upstream":
     import nif.upstream as nif
 elif NIF_IMPLEMENTATION == "functional":
@@ -63,7 +56,19 @@ from nif.data import TravelingWave
 tw = TravelingWave()
 train_data = tw.data
 
+# Create directory for saved weights if it doesn't exist
+os.makedirs('./saved_weights', exist_ok=True)
+
 if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
+    # Use mixed precision if enabled for TF, pytorch uses the Automatic Mixed Precision (AMP) feature, which has a similar effect
+    if enable_mixed_precision:
+        mixed_policy = "mixed_float16"
+        # we might need this for `model.fit` to automatically do loss scaling
+        policy = tf.keras.mixed_precision.Policy(mixed_policy)
+        tf.keras.mixed_precision.set_global_policy(policy)
+    else:
+        mixed_policy = 'float32'
+
     num_total_data = train_data.shape[0]
 
     train_inputs = train_data[:, :2]
@@ -72,19 +77,20 @@ if NIF_IMPLEMENTATION == "upstream" or NIF_IMPLEMENTATION == "functional":
     train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
     
 
-    cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
-    with cm:
+    if OPTIMIZER == "adam":
+        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    elif OPTIMIZER == "adabelief":
+        from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
         optimizer = AdaBeliefOptimizer(lr)
         optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+    else:
+        raise ValueError(f"Invalid optimizer: {OPTIMIZER}")
 
-        model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-        model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
-        model.compile(optimizer, loss='mse')
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+    model.compile(optimizer, loss='mse')
 
-        model.summary()
-
-    # Create directory for saved weights if it doesn't exist
-    os.makedirs('./saved_weights', exist_ok=True)
+    model.summary()
 
     # Initialize callbacks
     scheduler_callback = tf.keras.callbacks.LearningRateScheduler(base.scheduler)
@@ -100,8 +106,15 @@ elif NIF_IMPLEMENTATION == "pytorch":
     train_dataset = torch.utils.data.TensorDataset(train_inputs, train_targets)
 
     # Initialize model, optimizer, and data loader
-    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    model = nif.NIF(cfg_shape_net, cfg_parameter_net)
+    if OPTIMIZER == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    elif OPTIMIZER == "adabelief":
+        from nif.torch.optimizers import AdaBeliefOptimizer
+        optimizer = AdaBeliefOptimizer(model.parameters(), lr=lr)
+    else:
+        raise ValueError(f"Invalid optimizer: {OPTIMIZER}")
+    
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,

@@ -33,10 +33,10 @@ def setup_example_base(NT, NX):
     return u, x, t, x0, c, omega, xx, tt
 
 def get_derivative_data(x0, c, omega, xx, tt):
-    dudx = np.exp(-1000*(xx-x0-c*tt)**2)*(-2000*(xx-x0-c*tt)*np.sin(omega*(xx-x0-c*tt)) + 
+    dudx = np.exp(-1000*(xx-x0-c*tt)**2)*(-2000*(xx-x0-c*tt)*np.sin(omega*(xx-x0-c*tt)) +
                                         omega*np.cos(omega*(xx-x0-c*tt)))
 
-    dudt = np.exp(-1000*(xx-x0-c*tt)**2)*(2000*c*(xx-x0-c*tt)* np.sin(omega*(xx-x0-c*tt)) - 
+    dudt = np.exp(-1000*(xx-x0-c*tt)**2)*(2000*c*(xx-x0-c*tt)* np.sin(omega*(xx-x0-c*tt)) -
                                         omega*c* np.cos(omega*(xx-x0-c*tt)))
 
 
@@ -46,9 +46,8 @@ def get_derivative_data(x0, c, omega, xx, tt):
     return dudx_1d, dudt_1d
 
 def get_base_configs():
-    enable_multi_gpu = False
-    enable_mixed_precision = False
-    nepoch = 5000
+    enable_mixed_precision = True
+    nepoch = 100
     lr = 1e-4
     batch_size = 512
     display_epoch = 100
@@ -56,8 +55,8 @@ def get_base_configs():
 
     NT=10 # 20
     NX=200
-    
-    return enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX
+
+    return enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX
 
 def scheduler(epoch, lr):
     # return lr

@@ -1,9 +1,26 @@
 import torch
 import torch.nn as nn
 from typing import Dict, Any, List
+from torch.amp import autocast, GradScaler
 
 from nif.torch import utils
 from nif.torch.layers import StaticDense, ResNet, Shortcut
+
+class MixedPrecisionPolicy:
+    """PyTorch equivalent of tf.keras.mixed_precision.Policy"""
+    def __init__(self, policy_name: str):
+        self.policy_name = policy_name
+        self.use_amp = policy_name in ['float16', 'bfloat16']
+        
+        if policy_name == 'float16':
+            self.compute_dtype = torch.float16
+            self.variable_dtype = torch.float32  # Variables still stored in float32
+        elif policy_name == 'bfloat16':
+            self.compute_dtype = torch.bfloat16
+            self.variable_dtype = torch.float32
+        else:  # default to float32
+            self.compute_dtype = torch.float32
+            self.variable_dtype = torch.float32
 
 class NIF(nn.Module):
     def __init__(
@@ -18,7 +35,7 @@ class NIF(nn.Module):
         Args:
             cfg_shape_net: Configuration for shape network
             cfg_parameter_net: Configuration for parameter network
-            mixed_policy: Mixed precision policy (currently not used in PyTorch version)
+            mixed_policy: Mixed precision policy ('float32', 'float16', or 'bfloat16')
         """
         super().__init__()
         
@@ -26,9 +43,18 @@ class NIF(nn.Module):
         self.cfg_shape_net = cfg_shape_net
         self.cfg_parameter_net = cfg_parameter_net
         
+        # Set up mixed precision policy and scaler for AMP
+        self.policy = MixedPrecisionPolicy(mixed_policy)
+        self.scaler = GradScaler(enabled=self.policy.use_amp)
+        
         # Build networks
         self.shape_net = self._build_shape_net()
         self.parameter_net = self._build_parameter_net()
+        
+        # Move model to GPU if available and set dtype
+        #self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = 'cpu'
+        self.to(device=self.device, dtype=self.policy.variable_dtype)
     
     def _build_parameter_net(self) -> nn.Module:
         """Build the parameter network with regularization options"""
@@ -139,21 +165,34 @@ class NIF(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the NIF model"""
-        # Split input
-        parameter_input = x[:, :self.cfg_parameter_net["input_dim"]]
-        shape_input = x[:, self.cfg_parameter_net["input_dim"]:]
+        # Move input to correct device and dtype
+        x = x.to(device=self.device, dtype=self.policy.variable_dtype)
         
-        # Get parameters from parameter network
-        parameters = self.parameter_net(parameter_input)
-        
-        # Pass through shape network
-        return self.shape_net([shape_input, parameters])
+        # Use autocast only when using mixed precision
+        if self.policy.use_amp:
+            with autocast():
+                # Split input
+                parameter_input = x[:, :self.cfg_parameter_net["input_dim"]]
+                shape_input = x[:, self.cfg_parameter_net["input_dim"]:]
+                
+                # Get parameters from parameter network
+                parameters = self.parameter_net(parameter_input)
+                
+                # Pass through shape network
+                return self.shape_net([shape_input, parameters])
+        else:
+            # Regular forward pass without mixed precision
+            parameter_input = x[:, :self.cfg_parameter_net["input_dim"]]
+            shape_input = x[:, self.cfg_parameter_net["input_dim"]:]
+            parameters = self.parameter_net(parameter_input)
+            return self.shape_net([shape_input, parameters])
     
     def get_config(self) -> Dict[str, Any]:
         """Get model configuration"""
         return {
             "cfg_shape_net": self.cfg_shape_net,
-            "cfg_parameter_net": self.cfg_parameter_net
+            "cfg_parameter_net": self.cfg_parameter_net,
+            "mixed_policy": self.policy.policy_name
         }
     
     @classmethod

@@ -1,14 +1,12 @@
-import numpy as np
-import contextlib
 import os
 import tensorflow as tf
 from nif import base
 from nif import basetf
 
-# NIF_IMPLEMENTATION="upstream"
-NIF_IMPLEMENTATION="functional"
+NIF_IMPLEMENTATION = os.getenv("NIF_IMPLEMENTATION", "functional")
+OPTIMIZER = os.getenv("OPTIMIZER", "Adam")
 
-enable_multi_gpu, enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
+enable_mixed_precision, nepoch, lr, batch_size, display_epoch, print_figure_epoch, NT, NX = base.get_base_configs()
 u, x, t, x0, c, omega, xx, tt = base.setup_example_base(NT, NX)
 dudx_1d, dudt_1d = base.get_derivative_data(x0, c, omega, xx, tt)
 
@@ -16,10 +14,8 @@ dudx_1d, dudt_1d = base.get_derivative_data(x0, c, omega, xx, tt)
 # Setup for NIF with SIREN
 if NIF_IMPLEMENTATION == "upstream":
     import nif.upstream as nif
-    from nif.upstream.layers import JacobianLayer
 elif NIF_IMPLEMENTATION == "functional":
     import nif.functional as nif
-    from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
 else:
     raise ValueError(f"Invalid NIF implementation: {NIF_IMPLEMENTATION}")
 
@@ -46,8 +42,8 @@ cfg_parameter_net = {
 if enable_mixed_precision:
     mixed_policy = "mixed_float16"
     # we might need this for `model.fit` to automatically do loss scaling
-    policy = nif.mixed_precision.Policy(mixed_policy)
-    nif.mixed_precision.set_global_policy(policy)
+    policy = tf.keras.mixed_precision.Policy(mixed_policy)
+    tf.keras.mixed_precision.set_global_policy(policy)
 else:
     mixed_policy = 'float32'
     
@@ -65,18 +61,20 @@ train_targets = train_data[:, -1:]
 train_dataset = tf.data.Dataset.from_tensor_slices((train_inputs, train_targets))
 train_dataset = train_dataset.shuffle(num_total_data).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
-cm = tf.distribute.MirroredStrategy().scope() if enable_multi_gpu else contextlib.nullcontext()
-with cm:
-    # optimizer = AdaBeliefOptimizer(lr)
-    # optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
-
+if OPTIMIZER == "adam":
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+elif OPTIMIZER == "adabelief":
+    from nif.upstream.optimizers import AdaBeliefOptimizer, centralized_gradients_for_optimizer
+    optimizer = AdaBeliefOptimizer(lr)
+    optimizer.get_gradients = centralized_gradients_for_optimizer(optimizer)
+else:
+    raise ValueError(f"Invalid optimizer: {OPTIMIZER}")
 
-    model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
-    model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
-    model.compile(optimizer, loss='mse')
+model = nif.NIF(cfg_shape_net, cfg_parameter_net, mixed_policy)
+model.build(input_shape=(cfg_shape_net["input_dim"] + cfg_parameter_net["input_dim"],))
+model.compile(optimizer, loss='mse')
 
-    model.summary()
+model.summary()
     
 # Create directory for saved weights if it doesn't exist
 os.makedirs('./saved_weights', exist_ok=True)

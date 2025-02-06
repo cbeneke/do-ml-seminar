@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.keras import mixed_precision
 
 from .__about__ import __version__
 from nif.upstream import optimizers
@@ -18,7 +17,6 @@ __all__ = [
     "NIFMultiScale",
     "NIFMultiScaleLastLayerParameterized",
     "NIF",
-    "mixed_precision",
     "optimizers",
     "utils",
 ]

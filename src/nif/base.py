@@ -47,7 +47,7 @@ def get_derivative_data(x0, c, omega, xx, tt):
 
 def get_base_configs():
     enable_mixed_precision = True
-    nepoch = 100
+    nepoch = 5000
     lr = 1e-4
     batch_size = 512
     display_epoch = 100

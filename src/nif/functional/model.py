@@ -121,17 +121,17 @@ class NIF(tf.keras.Model):
                 dtype=mixed_policy,
             ))
         
-        # # Bottleneck layer
-        # layers.append(tf.keras.layers.Dense(
-        #     name="bottleneck_pnet",
-        #     units=cfg_parameter_net["latent_dim"],
-        #     activation=cfg_parameter_net["activation"],
-        #     kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-        #     bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
-        #     kernel_regularizer=kernel_regularizer,
-        #     bias_regularizer=bias_regularizer,
-        #     dtype=mixed_policy,
-        # ))
+        # Bottleneck layer
+        layers.append(tf.keras.layers.Dense(
+            name="bottleneck_pnet",
+            units=cfg_parameter_net["latent_dim"],
+            activation=cfg_parameter_net["activation"],
+            kernel_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+            bias_initializer=tf.keras.initializers.TruncatedNormal(stddev=0.1),
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer,
+            dtype=mixed_policy,
+        ))
 
         # Last Layer with additional activation regularizer
         if cfg_parameter_net["activation"] == 'sine':

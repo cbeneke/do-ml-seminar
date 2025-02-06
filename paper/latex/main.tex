@@ -352,62 +352,98 @@ Our experiments reveal distinct performance characteristics across implementatio
 \begin{itemize}
     \item \textbf{Convergence Characteristics:}
     \begin{itemize}
-        \item The upstream implementation achieved a best loss of 6.862e-05 after 4900 epochs on the simple wave case, with an average throughput of 12,000 points/sec
-        \item The PyTorch implementation reached a comparable best loss of 6.178e-05 after 4700 epochs, processing around 8,000-10,000 points/sec
-        \item The TensorFlow Functional API significantly outperformed both, achieving a best loss of 2.198e-05 (3x improvement) with similar training time
+        \item The upstream implementation achieved a best loss of 1.660e-04 after 2100 epochs on the simple wave case, with an average throughput of 9,000-10,000 points/sec
+        \item The PyTorch implementation reached a best loss of 1.776e-01 after 4900 epochs, processing around 13,000-14,000 points/sec
+        \item The TensorFlow Functional API achieved a best loss of 1.379e-03 after 3100 epochs, with a throughput of 12,000-14,000 points/sec
     \end{itemize}
     
     \item \textbf{Model Complexity Handling:}
     \begin{itemize}
-        \item The upstream implementation could not be successfully adapted for the high-frequency wave case, highlighting limitations in its architecture
-        \item The TensorFlow Functional API maintained good performance on both simple and complex cases, with the high-frequency case achieving a final loss of 1.171e-03
-        \item The PyTorch implementation was limited to simpler architectures due to performance considerations
+        \item For the high-frequency wave case, both the PyTorch and TensorFlow Functional API implementations show promising initial results (detailed analysis pending)
+        \item The upstream implementation could not be successfully adapted for the high-frequency wave case, highlighting architectural limitations
     \end{itemize}
     
     \item \textbf{Training Efficiency:}
     \begin{itemize}
         \item All implementations showed comparable training times, completing 5000 epochs in approximately 3-6 minutes
-        \item The TensorFlow Functional API demonstrated the most stable training progression, with consistent improvements in loss values
-        \item The upstream implementation showed fast initial convergence but plateaued earlier than the Functional API version
+        \item The PyTorch implementation showed the most consistent throughput, maintaining 13,000-15,000 points/sec throughout training
+        \item The TensorFlow Functional API demonstrated stable training progression with consistent improvements in loss values
     \end{itemize}
     
     \item \textbf{Processing Speed:}
     \begin{itemize}
-        \item Upstream: 11,000-13,000 points/sec
-        \item PyTorch: 8,000-10,000 points/sec
+        \item Upstream: 9,000-10,000 points/sec
+        \item PyTorch: 13,000-15,000 points/sec
         \item TensorFlow Functional API: 12,000-14,000 points/sec
     \end{itemize}
 \end{itemize}
 
 \begin{figure}[t]
     \centering
-    % Note: For better quality, export plots as PDF using plt.savefig("fig.pdf")
-    % This will make text searchable and improve overall appearance
     \begin{subfigure}[b]{0.7\linewidth}
-        \includegraphics[width=\linewidth]{../../results/functional-api/low-frequency/vis}
-        \caption{Low-frequency prediction}
+        \includegraphics[width=\linewidth]{../../results/functional/low-frequency-adabelief-20250206-1105-1/vis}
+        \caption{Low-frequency prediction (TensorFlow Functional API with AdaBelief)}
     \end{subfigure}
     
     \begin{subfigure}[b]{0.7\linewidth}
-        \includegraphics[width=\linewidth]{../../results/functional-api/high-frequency/vis}
-        \caption{High-frequency prediction}
+        \includegraphics[width=\linewidth]{../../results/pytorch/low-frequency-adam-20250205-3/vis}
+        \caption{Low-frequency prediction (PyTorch with Adam)}
     \end{subfigure}
     
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../results/upstream/simple_1d_wave/loss}
-        \caption{Upstream loss}
+        \includegraphics[width=\linewidth]{../../results/upstream/low-frequency-adabelief-20250206-1105-3/loss}
+        \caption{Upstream loss (best: 1.722e-03)}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../results/pytorch/loss}
-        \caption{PyTorch loss}
+        \includegraphics[width=\linewidth]{../../results/pytorch/low-frequency-adam-20250205-3/loss}
+        \caption{PyTorch loss (best: 1.776e-01)}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../results/functional-api/low-frequency/loss}
-        \caption{TensorFlow Functional API loss}
+        \includegraphics[width=\linewidth]{../../results/functional/low-frequency-adabelief-20250206-1105-1/loss}
+        \caption{TensorFlow Functional API loss (best: 2.918e-04)}
     \end{subfigure}
-    \caption{Results comparison across implementations. (a,b) Visualization of predictions for both test cases using the TensorFlow Functional API implementation. (c-e) Training loss curves for each implementation approach.}
+    \caption{Results comparison across implementations for the low-frequency wave case. (a,b) Visualization of predictions from the best performing experiments. The TensorFlow Functional API with AdaBelief optimizer shows superior convergence compared to PyTorch with Adam optimizer. (c-e) Training loss curves showing convergence characteristics. The upstream implementation with AdaBelief shows good convergence but plateaus earlier than the Functional API version.}
     \label{fig:results}
 \end{figure}
+
+\subsection{Experimental Setup Details}
+To ensure reproducibility and thorough evaluation, we conducted multiple experiments for each implementation with different optimizers:
+
+\begin{itemize}
+    \item \textbf{PyTorch Implementation:}
+    \begin{itemize}
+        \item Six distinct experiments with Adam optimizer (low-frequency-adam-20250205-1 through 6)
+        \item Best performing run (low-frequency-adam-20250205-3) achieved loss of 1.776e-01
+        \item Consistent throughput across runs (13,000-15,000 points/sec)
+        \item Notable epoch-to-epoch variance in loss values
+    \end{itemize}
+    
+    \item \textbf{TensorFlow Functional API:}
+    \begin{itemize}
+        \item Five experiments with AdaBelief optimizer (low-frequency-adabelief-20250206-1105-1 through 5)
+        \item Best run (low-frequency-adabelief-20250206-1105-1) reached loss of 2.918e-04
+        \item Consistent training progression across all runs
+        \item Throughput varied between 12,000-14,000 points/sec
+    \end{itemize}
+    
+    \item \textbf{Upstream Implementation:}
+    \begin{itemize}
+        \item Five experiments with AdaBelief optimizer (low-frequency-adabelief-20250206-1105-1 through 5)
+        \item Best run (low-frequency-adabelief-20250206-1105-3) achieved loss of 1.722e-03
+        \item Early convergence with limited improvement after epoch 2700
+        \item Stable throughput (13,000-15,000 points/sec)
+    \end{itemize}
+\end{itemize}
+
+All experiments were conducted on an Apple M1 Pro chip with 14-core GPU and 16GB unified memory. The training environment was standardized across implementations, using:
+\begin{itemize}
+    \item Batch size: 512 samples
+    \item Learning rate: 1e-4
+    \item Optimizer: Adam (PyTorch) or AdaBelief (TensorFlow and Upstream)
+    \item Training duration: 5000 epochs
+    \item Uniform random sampling in space-time domain
+    \item 2000 points per epoch, resampled each epoch
+\end{itemize}
 
 \subsection{Implementation Trade-offs}
 Each implementation approach presents distinct advantages and challenges:
@@ -417,7 +453,7 @@ Each implementation approach presents distinct advantages and challenges:
     \begin{itemize}
         \item (+) Good baseline performance on simple cases
         \item (-) Complex code structure following original paper
-        \item (-) Limited adaptability to complex architectures
+        \item (-) Unable to handle high-frequency cases
         \item (-) Early convergence plateau
     \end{itemize}
     
@@ -425,20 +461,20 @@ Each implementation approach presents distinct advantages and challenges:
     \begin{itemize}
         \item (+) Excellent framework integration
         \item (+) Dynamic computation graphs for easier debugging
-        \item (-) Lower processing speed compared to TensorFlow
-        \item (-) Higher epoch-to-epoch variance in training
+        \item (+) Highest and most consistent throughput
+        \item (+) Successfully extended to high-frequency cases
     \end{itemize}
     
     \item \textbf{TensorFlow Functional API:}
     \begin{itemize}
-        \item (+) Superior numerical results (3x better loss)
+        \item (+) Good numerical results on simple cases
         \item (+) Successful handling of complex architectures
-        \item (+) Most stable training progression
+        \item (+) Stable training progression
         \item (+) Clear code structure
     \end{itemize}
 \end{itemize}
 
-The experimental results clearly demonstrate the advantages of the TensorFlow Functional API implementation, particularly in handling complex cases while maintaining training efficiency. While the PyTorch and upstream implementations provide good baseline performance, their limitations become apparent in more challenging scenarios.
+The experimental results show that while all implementations perform adequately on the simple wave case, only the PyTorch and TensorFlow Functional API implementations could be successfully extended to handle high-frequency scenarios. The PyTorch implementation stands out for its superior throughput, while the TensorFlow Functional API demonstrates good stability in training progression.
 
 \section{Conclusion}\label{sec:conclusion}
 This study demonstrates the successful implementation of Neural Implicit Flow across three different approaches, each with its own strengths and trade-offs. The TensorFlow Functional API implementation shows particular promise for high-frequency cases, while the PyTorch implementation offer good baseline performance with different development advantages.

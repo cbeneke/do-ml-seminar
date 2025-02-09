@@ -34,19 +34,19 @@ Traditional approaches to dimensionality reduction have primarily relied on meth
 To address these fundamental limitations, Neural Implicit Flow (NIF)~\cite{nif2023} introduced a novel architecture that decomposes the problem into two specialized components. The first component, ShapeNet, focused specifically on isolating and representing spatial complexity within the data. The second component, ParameterNet, handled the broader aspects of parametric dependencies, temporal evolution, and sensor measurements. This decomposition allowed for more effective handling of complex spatio-temporal relationships while maintaining computational efficiency.
 
 \subsection{Neural Implicit Flow Architecture}
-The core innovation of NIF lies in its ability to decouple spatial complexity from other factors~\cite{nif2023}. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, NIF learns the mapping:
+The core innovation of NIF lies in its ability to decouple spatial complexity from other factors~\cite{nif2023}. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d, d \in \mathbb{N}$, and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p, p \in \mathbb{N}$, and $n \in \mathbb{N}$ NIF learns the mapping:
 
 \begin{equation}
-    f_\theta: (\mathbf{x}, \mathbf{t}) \mapsto u(\mathbf{x}, \mathbf{t})
+    f_\theta: \mathbb{R}^{d \times p} \to \mathbb{R}^n, (\mathbf{x}, \mathbf{t}) \mapsto u(\mathbf{x}, \mathbf{t})
 \end{equation}
 
-where $u(\mathbf{x}, \mathbf{t})$ represents the field value at the given space-time coordinate, and $\theta$ represents the learnable parameters of both networks. The decoupling was achieved through a hypernetwork architecture:
+where $u(\mathbf{x}, \mathbf{t}): \mathbb{R}^{p} \to \mathbb{R}^n$ represents the field value at the given space-time coordinate, and $\theta \in \mathbb{R}^{s \times t}, s, t \in \mathbb{N}$ represents the learnable parameters of both networks. The decoupling was achieved through a hypernetwork architecture:
 
 \begin{equation}
     f_\theta(\mathbf{x}, \mathbf{t}) = \text{ShapeNet}_{\text{ParameterNet}_{\theta_p}(\mathbf{t})}(\mathbf{x})
 \end{equation}
 
-Here, $\text{ParameterNet}_{\theta_p}$ with parameters $\theta_p$ took the temporal input $\mathbf{t}$ and generated the weights and biases for $\text{ShapeNet}$. This generated set of parameters allowed $\text{ShapeNet}$ to adapt its spatial representation based on the temporal context. The complete parameter set $\theta = \{\theta_p\}$ consisted only of the ParameterNet parameters, as ShapeNet's parameters were dynamically generated.
+Here, $\text{ParameterNet}_{\theta_p}$ with parameters $\theta_p \in \mathbb{R}^{t}$ took the temporal input $\mathbf{t}$ and generated the weights and biases for $\text{ShapeNet}$. This generated set of parameters allowed $\text{ShapeNet}$ to adapt its spatial representation based on the temporal context. The complete parameter set $\theta = \theta_p \times 0^s$ consisted only of the ParameterNet parameters, as ShapeNet's parameters were dynamically generated.
 
 This architectural design provided several significant advantages in practice. The framework operated directly on point-wise data, eliminating the mesh dependencies that plagued traditional methods. This mesh-agnostic approach enabled efficient scaling to high-dimensional problems without the computational overhead typically associated with mesh-based methods. Furthermore, the combination of ShapeNet and ParameterNet created a highly expressive model capable of representing complex dynamics across various scales and domains.
 

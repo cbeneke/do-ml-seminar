@@ -44,7 +44,6 @@ if DATASET == "low-frequency":
     }
 elif DATASET == "high-frequency":
     cfg_shape_net = {
-        "use_resblock": False,
         "connectivity": 'full',
         "input_dim": 1,
         "output_dim": 1,
@@ -55,7 +54,6 @@ elif DATASET == "high-frequency":
         "activation": 'sine'
     }
     cfg_parameter_net = {
-        "use_resblock": False,
         "input_dim": 1,
         "latent_dim": 1,
         "units": 30,

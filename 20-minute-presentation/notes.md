@@ -1,5 +1,8 @@
 # Neural Implicit Flow: A Comparative Study
-## Speaker Notes (20 minutes)
+## Speaker Notes
+
+### Catchphrase
+- Consider you want to calculate the air flow around an aircraft wing
 
 ### Title Slide (30 seconds)
 - Brief personal introduction

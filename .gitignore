@@ -16,3 +16,6 @@ saved_weights/
 # PyTorch
 *.pt
 *.pth
+
+# MacOS
+.DS_Store

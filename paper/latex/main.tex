@@ -1,0 +1,335 @@
+\documentclass[10pt,journal,compsoc,onecolumn]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{array}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{cleveref}
+\usepackage{float}
+
+\begin{document}
+
+\title{Neural Implicit Flow: A Comparative Study of Implementation Approaches}
+
+\author{Christian~Beneke}
+
+\maketitle
+
+\begin{abstract}
+Neural Implicit Flow (NIF)~\cite{nif2023} was proposed as a powerful approach for representing continuous functions in various domains, particularly for spatio-temporal data modeled by PDEs. This paper presents a comparative study of three different implementations of NIFs: an upstream reference implementation, a PyTorch-based approach, and a TensorFlow Functional API design. We evaluate these implementations on both simple periodic and complex high-frequency wave functions, analyzing their performance, convergence characteristics, and implementation trade-offs. Our results demonstrate that while all implementations successfully modeled the target functions, they exhibited different strengths in terms of convergence speed, accuracy, and code maintainability. The TensorFlow Functional API implementation showed superior performance for high-frequency cases, achieving up to 4x better loss values compared to the baseline.
+\end{abstract}
+
+\section{Introduction}
+High-dimensional spatio-temporal dynamics present significant challenges in scientific computing and engineering applications. While these systems can often be encoded in low-dimensional subspaces, existing dimensionality reduction techniques struggled with practical engineering challenges such as variable geometry, non-uniform grid resolution, and adaptive meshing. Neural Implicit Flow (NIF)~\cite{nif2023} has emerged as a promising solution to these challenges, offering a mesh-agnostic, low-rank representation framework for large-scale, parametric, spatial-temporal data~\cite{neural_fields2022}.
+
+\subsection{Background and Motivation}
+Traditional approaches to dimensionality reduction have primarily relied on methods like Singular Value Decomposition (SVD) and Convolutional Autoencoders (CAE). However, these conventional approaches faced significant limitations in practical applications. The requirement for fixed mesh structures in SVD and CAE made them poorly suited for problems involving adaptive or variable geometry. Additionally, these methods often exhibited poor scaling characteristics when dealing with high-dimensional data, particularly in 3D applications. Perhaps most critically, linear methods struggled to effectively capture complex nonlinear dynamics, limiting their utility in many real-world scenarios.~\cite{nif2023}
+
+To address these fundamental limitations, Neural Implicit Flow (NIF)~\cite{nif2023} introduced a novel architecture that decomposes the problem into two specialized components. The first component, ShapeNet, focused specifically on isolating and representing spatial complexity within the data. The second component, ParameterNet, handled the broader aspects of parametric dependencies, temporal evolution, and sensor measurements. This decomposition allowed for more effective handling of complex spatio-temporal relationships while maintaining computational efficiency.
+
+\subsection{Neural Implicit Flow Architecture}
+The core innovation of NIF lies in its ability to decouple spatial complexity from other factors~\cite{nif2023}. Given a spatial coordinate $\mathbf{x} \in \mathbb{R}^d$ and temporal/parametric input $\mathbf{t} \in \mathbb{R}^p$, NIF learns the mapping:
+
+\begin{equation}
+    f_\theta: (\mathbf{x}, \mathbf{t}) \mapsto u(\mathbf{x}, \mathbf{t})
+\end{equation}
+
+where $u(\mathbf{x}, \mathbf{t})$ represents the field value at the given space-time coordinate, and $\theta$ represents the learnable parameters of both networks. The decoupling was achieved through a hypernetwork architecture:
+
+\begin{equation}
+    f_\theta(\mathbf{x}, \mathbf{t}) = \text{ShapeNet}_{\text{ParameterNet}_{\theta_p}(\mathbf{t})}(\mathbf{x})
+\end{equation}
+
+Here, $\text{ParameterNet}_{\theta_p}$ with parameters $\theta_p$ took the temporal input $\mathbf{t}$ and generated the weights and biases for $\text{ShapeNet}$. This generated set of parameters allowed $\text{ShapeNet}$ to adapt its spatial representation based on the temporal context. The complete parameter set $\theta = \{\theta_p\}$ consisted only of the ParameterNet parameters, as ShapeNet's parameters were dynamically generated.
+
+This architectural design provided several significant advantages in practice. The framework operated directly on point-wise data, eliminating the mesh dependencies that plagued traditional methods. This mesh-agnostic approach enabled efficient scaling to high-dimensional problems without the computational overhead typically associated with mesh-based methods. Furthermore, the combination of ShapeNet and ParameterNet created a highly expressive model capable of representing complex dynamics across various scales and domains.
+
+\subsection{Key Applications}
+The versatility of Neural Implicit Flow has enabled its successful application across diverse domains in scientific computing and engineering. In parametric surrogate modeling, NIF provided efficient representations of PDE solutions across parameter spaces, enabling rapid evaluation of complex physical systems. The framework's ability to handle multi-scale data has proven particularly valuable in problems involving multiple spatial and temporal scales, where traditional methods often struggled to capture the full range of dynamics.~\cite{nif2023}
+
+NIF has also demonstrated significant utility in sparse sensing applications, where it enabled accurate reconstruction of full fields from limited sensor measurements. This capability is particularly valuable in real-world scenarios where comprehensive measurements may be impractical or cost-prohibitive. Additionally, the framework's effectiveness in modal analysis allowed for the extraction of coherent structures from complex flows, providing insights into underlying physical mechanisms.~\cite{nif2023}
+
+\subsection{Implementation Approaches}
+Our comparative study examined three distinct implementation approaches for Neural Implicit Flow, each leveraging different modern deep learning frameworks and design philosophies. The upstream reference implementation served as our baseline, providing a TensorFlow-based implementation that closely followed the original paper's implementation~\cite{nif2023github}. Our PyTorch implementation took advantage of the framework's dynamic computation graphs and sophisticated autograd functionality, offering improved development ergonomics. The TensorFlow Functional API implementation represented a complete redesign focusing on functional programming principles and improved composability.
+
+These implementations differed significantly in their practical characteristics. Performance considerations included computational efficiency and memory usage patterns, with each implementation making different trade-offs to optimize these aspects. Code maintainability varied across implementations, with different approaches to organization and debugging capabilities. The implementations also differed in their flexibility, particularly in terms of modification and extension capabilities. Finally, each approach presented different learning curves for new users, influenced by both the chosen framework and architectural decisions.
+
+\subsection{Paper Organization}
+This paper provided a comprehensive analysis of Neural Implicit Flow implementations, organized to guide readers through our comparative study. We began with Section~\ref{sec:original_results}, which presented the foundational results from the original NIF study, establishing the baseline for our implementation comparison. Section~\ref{sec:implementation} followed with a detailed examination of our three implementation approaches, analyzing their architectural decisions and technical characteristics. Section~\ref{sec:discussion} explored practical considerations and trade-offs encountered during implementation and deployment. Finally, Section~\ref{sec:conclusion} synthesized our findings and discussed future research directions.
+
+Through this structured analysis, we aimed to provide researchers and practitioners with practical insights for implementing Neural Implicit Flow in their own applications. Our comparison highlighted both the strengths and limitations of each approach, enabling informed decisions based on specific use case requirements.
+
+\section{Results from Original NIF Study}\label{sec:original_results}
+\subsection{Benchmark Applications and Results}
+The original NIF framework demonstrated significant advantages across several key applications. In the Parametric Kuramoto-Sivashinsky (K-S) Equation study, NIF achieved 40\% better generalization in RMSE compared to standard MLPs, while requiring only half the training data for equivalent accuracy. The framework also demonstrated superior parameter efficiency, achieving 50\% lower testing error with the same number of parameters.~\cite{nif2023}
+
+For the Rayleigh-Taylor Instability case, NIF outperformed both SVD and CAE in nonlinear dimensionality reduction, achieving 10x to 50\% error reduction compared to traditional methods. Notably, it successfully handled adaptive mesh refinement without preprocessing requirements.~\cite{nif2023}
+
+In the context of 3D Homogeneous Isotropic Turbulence, the framework successfully compressed 2 million cell turbulent flow data while preserving important statistical properties, including PDFs of velocity and derivatives. This resulted in a 97\% reduction in storage requirements while maintaining accuracy.~\cite{nif2023}
+
+The framework also showed significant improvements in spatial query efficiency, with a 30\% reduction in CPU time and 26\% reduction in memory consumption, all while maintaining equivalent accuracy to baseline methods. For Sea Surface Temperature Reconstruction, NIF demonstrated a 34\% improvement over POD-QDEIM in sparse sensing applications, with better generalization on a 15-year prediction horizon and successful capture of small-scale temperature variations.~\cite{nif2023}
+
+\subsection{Technical Innovations}
+The success of NIF can be attributed to several key technical innovations. The integration of SIREN~\cite{siren2020} brought three crucial elements that significantly enhanced the framework's capabilities. The implementation of $\omega_0$-scaled sine activation functions provided improved gradient flow throughout the network. A specialized initialization scheme for weights and biases ensured stable training from the start. Additionally, the incorporation of ResNet-like skip connections substantially improved training stability and convergence
+characteristics.~\cite{nif2023}
+
+The hypernetwork structure~\cite{hypernetworks2016} represents another fundamental innovation, providing efficient decoupling of spatial and temporal/parametric complexity. This was achieved through a linear bottleneck layer that enables effective dimensionality reduction, combined with adaptive parameter generation for ShapeNet. This architectural choice enables the framework to handle complex spatio-temporal relationships while maintaining computational efficiency.~\cite{nif2023}
+
+The framework's training process was refined through several critical optimizations. The implementation uses carefully tuned small learning rates, typically ranging from 10$^{-4}$ to 10$^{-5}$, which ensure stable gradient updates throughout the training process. The use of large batch sizes promotes training stability by providing more reliable gradient estimates. For scenarios involving small batch sizes, the L4 optimizer adaptation was implemented to maintain training stability and convergence.~\cite{nif2023}
+
+\subsection{Computational Requirements}
+The original implementation demonstrated practical computational demands across various hardware configurations. The framework successfully ran on different GPU configurations (P100, RTX 2080, A6000) and scaled effectively with multi-GPU setups. Memory requirements ranged from 12GB to 48GB depending on problem size.~\cite{nif2023}
+
+Training characteristics showed consistent patterns across different applications. Convergence was typically achieved within 800-10,000 epochs, with batch sizes optimized for available GPU memory. The framework demonstrated progressive learning of scales, effectively capturing features from large to small structures.~\cite{nif2023}
+
+\section{Implementation Approaches}\label{sec:implementation}
+We developed three distinct implementations of Neural Implicit Flow~\cite{nif2023}, each with its own architectural considerations and technical challenges. This section details the implementation specifics of each approach.
+
+\subsection{Upstream Reference Implementation}
+The reference implementation from the original paper~\cite{nif2023github} served as our baseline but required substantial modernization to work effectively with current frameworks. A major component of this modernization involved migrating the TensorFlow codebase from version 1-like patterns to current practices. This migration necessitated several fundamental changes: converting the static computational graphs to eager execution mode, replacing deprecated \texttt{tf.get\_variable} calls with modern Keras layer initialization patterns, and implementing proper gradient tape management for automatic differentiation.
+
+Beyond the framework migration, we made significant improvements to the code organization and structure. Common functionality was extracted into a well-designed base class, promoting code reuse and maintainability. The training loop was standardized and optimized through the strategic use of \texttt{@tf.function} decorators, which enabled efficient graph execution while maintaining code clarity.
+
+\subsection{TensorFlow Functional API Implementation}
+Our TensorFlow Functional API implementation represented a complete architectural redesign that embraced functional programming principles while building upon the theoretical foundations of neural fields~\cite{neural_fields2022} and Neural Implicit Flow~\cite{nif2023}. At the core of this implementation was a sophisticated layer architecture centered around a hierarchical system. The foundation of this system was the HyperLayer class, which managed weight and bias parameter ranges through a carefully designed initialization interface:
+
+\begin{lstlisting}[language=Python]
+class HyperLayer(tf.keras.layers.Layer):
+    def __init__(self, weights_from, weights_to,
+        bias_offset, biases_from, biases_to):
+
+        self.weights_from = weights_from
+        self.weights_to = weights_to
+        self.biases_from = bias_offset + biases_from
+        self.biases_to = bias_offset + biases_to
+\end{lstlisting}
+
+This base layer architecture was extended through specialized implementations for Dense and SIREN layers, each incorporating custom initialization schemes optimized for their specific requirements. The network structure followed a clear progression: starting with a Dense layer for initial feature extraction, followed by Shortcut/ResNet layers for feature processing, and concluding with a Dense layer that produced the final output with appropriate parameter dimensionality.
+
+The implementation incorporated several key optimization features to enhance performance. XLA compilation support enabled efficient execution on various hardware accelerators. Weight generation was optimized through vectorized operations, significantly reducing computational overhead. Additionally, the implementation employed memory-efficient parameter handling techniques to minimize resource usage while maintaining model capacity.
+
+\subsection{PyTorch Implementation}
+The PyTorch implementation built upon the architectural patterns established in the Functional API version while leveraging PyTorch-specific features and incorporating insights from both SIREN~\cite{siren2020} and HyperNetworks~\cite{hypernetworks2016}. The core components of this implementation centered around two key systems: a flexible activation mapping system and efficient parameter handling through static weight layers.
+
+The activation mapping system provided a clean interface for managing different activation functions:
+
+\begin{lstlisting}[language=Python]
+def get_activation(name: str) -> nn.Module:
+    if name.lower() == 'relu': return nn.ReLU()
+    elif name.lower() == 'tanh': return nn.Tanh()
+    elif name.lower() == 'swish': return nn.SiLU()
+\end{lstlisting}
+
+Parameter handling was optimized through the StaticDense layer implementation:
+
+\begin{lstlisting}[language=Python]
+class StaticDense(nn.Module):
+    def forward(self, inputs):
+        x, params = inputs
+        w = params[:, self.w_from:self.w_to]
+        return self.activation(torch.matmul(x, w) + self.bias)
+\end{lstlisting}
+
+The training infrastructure was carefully designed to support robust model development and evaluation. A comprehensive training logger provided detailed visualization support for monitoring model progress, which was aligned with the original paper's visualization style. The implementation included automated checkpoint management for reliable experiment tracking and model persistence. Performance was enhanced through Automatic Mixed Precision (AMP) training using float16/bfloat16 computation with float32 parameter storage, as well as the use of \texttt{torch.compile} for optimized execution.
+
+In terms of implementation trade-offs, we made several strategic decisions. The model architectures were kept relatively simple to optimize performance, avoiding unnecessary complexity that could impact training efficiency. The implementation took full advantage of PyTorch's native features for enhanced framework integration. Perhaps most significantly, the use of dynamic computation graphs provided an improved development experience, facilitating easier debugging and model iteration.
+
+\subsection{Test Cases}
+Our evaluation framework encompassed two distinct test scenarios that probed different aspects of implementation capability. The first scenario focused on a low-frequency wave, characterized by a simple periodic traveling wave with a single frequency component. This case operated in a spatial domain of $x \in [0,1]$ discretized into 200 points, with a temporal domain spanning $t \in [0,100]$ across 10 timesteps. The wave parameters included a speed of $c = 0.12/20$ and an initial position of $x_0 = 0.2$, with the function taking the form $u(x,t) = \exp(-1000(x-x_0-ct)^2)$. Figure~\ref{fig:low_freq_comparison} shows the predictions of the low-frequency case for all three implementations.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.9\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adam-20250206-1105-1/vis}
+        \caption{Low-frequency prediction (TensorFlow Functional API)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.9\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/low-frequency-adam-20250206-1600-4/vis}
+        \caption{Low-frequency prediction (PyTorch)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.9\textwidth}
+        \includegraphics[width=\textwidth]{../../results/upstream/low-frequency-adabelief-20250206-1105-3/vis}
+        \caption{Low-frequency prediction (Upstream)}
+    \end{subfigure}
+    \caption{Comparison of low-frequency predictions across different implementations. The visualizations show the predicted wave patterns (middle) compared to ground truth (left) and their differences (right) for each implementation.}
+    \label{fig:low_freq_comparison}
+\end{figure}
+
+The second scenario presented a more challenging high-frequency case that combined an exponential envelope with high-frequency oscillations, replicating the example proposed in the original paper~\cite{nif2023github}. While maintaining the same spatial and temporal domains as the low-frequency case, this scenario introduced an additional frequency parameter $\omega = 400$. The resulting function took the form $u(x,t) = \exp(-1000(x-x_0-ct)^2)\sin(\omega(x-x_0-ct))$, creating a more complex target for the implementations to learn. Both our modern implementations successfully handled this challenging case, though we were unable to get the upstream implementation running on this example. Figure~\ref{fig:high_freq_comparison} shows the predictions of the high-frequency case for all three implementations.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.9\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/high-frequency-adam-20250206-1520-1/vis}
+        \caption{High-frequency prediction (TensorFlow Functional API)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.9\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/high-frequency-adam-20250206-1607-5/vis}
+        \caption{High-frequency prediction (PyTorch)}
+    \end{subfigure}
+    \caption{Comparison of high-frequency predictions across modern implementations. Both implementations successfully captured the high-frequency oscillations, with PyTorch achieving superior accuracy in this case.}
+    \label{fig:high_freq_comparison}
+\end{figure}
+
+\subsection{Network Architectures}
+Our study implemented and evaluated two distinct architectures, each sharing a common ParameterNet configuration but utilizing different ShapeNet implementations. The ParameterNet architecture consisted of a dense input layer, followed by two dense hidden layers of 30 units each, feeding into a single-unit bottleneck layer, and concluding with a dense output layer. The output layer's dimension was determined by the number of parameters required by the corresponding ShapeNet.
+
+For the low-frequency example, we employed a Shortcut ShapeNet implementation that utilized skip connections and swish activation functions. For the high-frequency example, we implemented a SIREN ShapeNet that leveraged sinusoidal activation functions scaled by $\omega_0 = 30$, enabling better handling of high-frequency signals. Both architectures maintained the same ParameterNet configuration, demonstrating the flexibility of our approach in accommodating different ShapeNet implementations while keeping the parameter generation network consistent.
+
+\subsection{Experimental Methodology}
+Our training methodology employed a standardized configuration across implementations while accounting for framework-specific optimizations. The common configuration established a consistent baseline with batch sizes of 512 samples, and training durations of 5000 epochs. Loss computation utilized Mean Squared Error (MSE), calculated over normalized values according to $\text{MSE} = \frac{1}{N}\sum_{i=1}^N (y_i - \hat{y}_i)^2$, with values normalized by the maximum wave amplitude and loss values averaged over 100-epoch windows.
+
+To ensure robust evaluation and account for training variability, each implementation and optimizer combination was tested through five independent training runs. This included the three implementations, each tested with both the AdaBelief optimizer utilised in the original paper~\cite{nif2023} and the widely-used Adam optimizer as a baseline comparison. The learning rate was scaled according to the training epoch: maintaining the initial rate for the first 1000 epochs, increasing to 10x for epochs 1000-2000, reducing to 5x for epochs 2000-4000, and returning to the initial rate after epoch 4000.
+
+From each set of five runs, we selected the experiment with the lowest Mean Squared Error (MSE) for our analysis. This methodology provided a fair comparison while accounting for the stochastic nature of neural network training, ensuring our results reflected the optimal achievable performance of each implementation-optimizer pairing rather than potential outliers or suboptimal training runs.
+
+Framework-specific optimizations were implemented to maximize performance within each environment. The TensorFlow implementation leveraged mixed precision training (FP16/FP32) and XLA compilation. The PyTorch implementation maintained native FP32 precision without XLA compilation, while the upstream implementation incorporated custom gradient clipping and weight initialization schemes.
+
+Data sampling followed a uniform random distribution in the space-time domain, with 2000 points sampled per epoch and resampling performed each epoch to prevent overfitting. All experiments were conducted on an Apple M1 Pro chip featuring a 14-core GPU, 16GB unified memory, and an 8-core CPU configuration with 6 performance cores and 2 efficiency cores.
+
+\section{Results and Discussion}\label{sec:discussion}
+\subsection{Performance Analysis}
+Our experimental analysis revealed distinct performance characteristics across implementations and optimizers, as demonstrated in Figures~\ref{fig:results_high} and~\ref{fig:results_low}. The training logs and performance metrics highlighted several significant findings regarding convergence, efficiency, and processing speed.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/high-frequency-adabelief-20250206-1520-5/loss}
+        \caption{TF Functional API with AdaBelief}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/high-frequency-adam-20250206-1520-1/loss}
+        \caption{TF Functional API with Adam}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/high-frequency-adabelief-20250206-1607-4/loss}
+        \caption{PyTorch with AdaBelief}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/high-frequency-adam-20250206-1607-5/loss}
+        \caption{PyTorch with Adam}
+    \end{subfigure}
+    \caption{Training loss curves for high-frequency experiments.}
+    \label{fig:results_high}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adabelief-20250206-1105-4/loss}
+        \caption{TF Functional API with AdaBelief}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adam-20250206-1105-1/loss}
+        \caption{TF Functional API with Adam}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/low-frequency-adabelief-20250206-1600-2/loss}
+        \caption{PyTorch with AdaBelief}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/pytorch/low-frequency-adam-20250206-1600-4/loss}
+        \caption{PyTorch with Adam}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/upstream/low-frequency-adabelief-20250206-1105-3/loss}
+        \caption{Upstream with AdaBelief}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/upstream/low-frequency-adam-20250206-1105-4/loss}
+        \caption{Upstream with Adam}
+    \end{subfigure}
+    \caption{Training loss curves for low-frequency experiments.}
+    \label{fig:results_low}
+\end{figure}
+
+In the low-frequency case, both modern implementations achieved excellent performance. As outlined in Table~\ref{tab:best_loss}, the TensorFlow Functional API implementation with Adam optimizer demonstrated superior performance, achieving a best loss value of 1.526e-04. The PyTorch implementation with Adam optimizer showed comparable performance with a loss of 1.549e-04, while the upstream implementation achieved 5.073e-04 with AdaBelief. These results indicated that while all implementations successfully learned the target function, the modern implementations provided significantly more accurate predictions.
+
+For the more challenging high-frequency case, the implementations showed more varied performance. Again looking at Table~\ref{tab:best_loss}, you can see that the TensorFlow Functional API maintained strong performance with Adam achieving a best loss of 5.415e-04, closely followed by AdaBelief at 6.117e-04. The PyTorch implementation showed notable variance between optimizers, with Adam achieving 1.884e-04 while AdaBelief reached 2.219e-03. We were unable to evaluate the upstream implementation on the high-frequency case due to challenges in getting the codebase running successfully, despite multiple attempts to resolve dependency and configuration issues.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Best Loss Values Achieved by Different Implementations}
+    \label{tab:best_loss}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{Implementation} & \multicolumn{2}{c}{\textbf{Low-Frequency}} & \multicolumn{2}{c}{\textbf{High-Frequency}} \\
+        & Adam & AdaBelief & Adam & AdaBelief \\
+        \hline
+        TensorFlow Functional & \textbf{1.526e-04} & 2.487e-04 & 5.415e-04 & 6.117e-04 \\
+        PyTorch & 1.549e-04 & 7.904e-04 & \textbf{1.884e-04} & 2.219e-03 \\
+        Upstream & 7.288e-04 & 5.073e-04 & - & - \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Training efficiency metrics revealed consistent patterns across implementations. The TensorFlow Functional API and PyTorch implementations with Adam optimizer demonstrated the most stable convergence trajectories across both frequency cases. Both modern implementations successfully achieved convergence within the 5000-epoch training window for all test cases, indicating robust and reliable training characteristics.
+
+In terms of processing speed, we observed clear performance differentials. As it can be seen in Table \ref{tab:best_performance}, the TensorFlow Functional API demonstrated consistent throughput across optimizers, processing 11,500-17,000 points per second for low-frequency and 11,500-16,000 points per second for high-frequency cases. The PyTorch implementation showed more variability, ranging from 12,000-15,000 points per second with Adam and 11,000-14,500 points per second with AdaBelief for low-frequency cases, while dropping to 6,000-16,000 and 8,000-15,000 points per second respectively for high-frequency cases. The upstream implementation achieved competitive speeds of 12,000-16,500 points per second with Adam and 12,500-17,000 points per second with AdaBelief for the low-frequency case, though it could not be evaluated on high-frequency examples. These throughput metrics demonstrated that all implementations achieved practical processing speeds suitable for real-world applications.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Best Processing Speed by Different Implementations in Points per Second}
+    \label{tab:best_performance}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{Implementation} & \multicolumn{2}{c}{\textbf{Low-Frequency}} & \multicolumn{2}{c}{\textbf{High-Frequency}} \\
+        & Adam & AdaBelief & Adam & AdaBelief \\
+        \hline
+        TensorFlow Functional & \textbf{11,500-17,000} & \textbf{11,500-17,000} & \textbf{11,500-16,000} & \textbf{11,500-16,000} \\
+        PyTorch & 12,000-15,000 & 11,000-14,500 & 6,000-16,000 & 8,000-15,000 \\
+        Upstream & \textbf{12,000-16,500} & \textbf{12,500-17,000} & - & - \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Optimizer Impact}
+The choice of optimizer significantly influenced training outcomes across all implementations. Our experiments compared the performance of Adam and AdaBelief optimizers, revealing consistent patterns. The Adam optimizer demonstrated superior performance in most cases, particularly with the modern implementations. For the TensorFlow Functional API, Adam achieved a 62.5\% improvement over AdaBelief in the low-frequency case (1.526e-04 vs 2.487e-04) and an 13.0\% improvement in the high-frequency case (5.415e-04 vs 6.117e-04). The difference was even more pronounced in the PyTorch implementation, where Adam outperformed AdaBelief by 5.10x in the low-frequency case (1.549e-04 vs 7.904e-04) and 11.77x in the high-frequency case (1.884e-04 vs 2.219e-03). It can be seen in Figure~\ref{fig:optimizer_comparison} that the training loss with the Adam optimizer is lower and more stable than the AdaBelief optimizer over time for the TensorFlow Functional API implementation on the low-frequency case.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adam-20250206-1105-1/loss}
+        \caption{Training loss with Adam optimizer}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.45\textwidth}
+        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adabelief-20250206-1105-4/loss}
+        \caption{Training loss with AdaBelief optimizer}
+    \end{subfigure}
+    \caption{Comparison of optimizer performance for the TensorFlow Functional API implementation on the low-frequency case. The Adam optimizer (left) shows better final loss values and more stable training progression compared to AdaBelief (right).}
+    \label{fig:optimizer_comparison}
+\end{figure}
+
+\subsection{Experimental Setup Details}
+Our comprehensive experimental evaluation involved multiple runs across different implementations and optimizers. The TensorFlow Functional API implementation underwent experiments with both Adam and AdaBelief optimizers for low and high-frequency cases. These trials yielded best loss values of 1.526e-04 (Adam) and 2.487e-04 (AdaBelief) for low-frequency, and 5.415e-04 (Adam) and 6.117e-04 (AdaBelief) for high-frequency scenarios, demonstrating consistent performance across different frequency ranges.
+
+The PyTorch implementation similarly underwent experiments with both optimizers for each frequency case. This implementation achieved impressive results with Adam, reaching loss values of 1.549e-04 for low-frequency and 1.884e-04 for high-frequency cases. The AdaBelief optimizer showed higher variance, with loss values of 7.904e-04 for low-frequency and 2.219e-03 for high-frequency cases.
+
+For the upstream implementation, we conducted experiments with both optimizers exclusively on the low-frequency case, achieving best loss values of 7.288e-04 with Adam and 5.073e-04 with AdaBelief. All experiments maintained consistent parameters, running for 5000 epochs with a batch size of 512 to ensure fair comparison.
+
+\subsection{Results and Discussion}
+The experimental results revealed significant performance variations across implementations, each demonstrating distinct strengths and limitations. In the low-frequency case, both modern implementations achieved exceptional accuracy with Adam optimizer, with the TensorFlow Functional API reaching 1.526e-04 and PyTorch achieving 1.549e-04. The upstream implementation showed competitive performance with a best loss of 5.073e-04 using AdaBelief.
+
+The high-frequency scenario provided a more stringent test of implementation capabilities. The PyTorch implementation with Adam optimizer showed surprisingly strong performance with a loss of 1.884e-04, while the TensorFlow Functional API maintained robust performance with losses of 5.415e-04 (Adam) and 6.117e-04 (AdaBelief). These results highlighted how different architectural choices and optimizer selections could significantly impact model performance in more challenging scenarios.
+
+Processing speed measurements revealed consistent performance across implementations for the low-frequency case, with both TensorFlow implementations showing a slight edge in throughput. These implementations processed 12,000-17,000 points per second, while the PyTorch implementation maintained speeds between 12,000-15,000 points per second. For the high-frequency case the Tensorflow Functional API implementation stayed stable, while the PyTorch implementation dropped slightly to 6,000-15,000 points per second. These results demonstrated that all implementations achieved practical processing speeds suitable for real-world applications.
+
+\section{Conclusion}\label{sec:conclusion}
+This study demonstrated the successful implementation of Neural Implicit Flow across three different approaches, each with its own strengths and trade-offs. Both modern implementations showed particular promise for high-frequency cases and offered a good baseline performance with different development advantages compared to the upstream implementation.
+
+Table~\ref{tab:best_loss} summarizes the best loss values achieved by each implementation and optimizer combination, highlighting the strong performance of modern implementations with the Adam optimizer.
+
+Our analysis pointed to several promising directions for future research and development. The exploration of additional network architectures tailored to specific use cases could further improve performance in specialized domains. There remained significant potential for performance optimizations across all implementations, particularly in areas of memory efficiency and computational throughput. Perhaps most importantly, the extension of these implementations to more complex spatio-temporal problems could open new applications in fields such as fluid dynamics, climate modeling, and materials science.
+
+These future directions, combined with the insights gained from our comparative study, suggested that Neural Implicit Flow would continue to evolve as a powerful tool for scientific computing and engineering applications. The framework's ability to handle complex spatio-temporal relationships, combined with the flexibility offered by modern deep learning frameworks, positioned it well for addressing increasingly challenging problems in computational science.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

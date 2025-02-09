@@ -36,137 +36,192 @@ class TrainingLogger:
             level=logging.INFO,
             format='%(message)s'
         )
-    
-    def on_epoch_begin(self):
-        """Call at the beginning of each epoch"""
+
+    def on_epoch_begin(self, epoch: int):
         self.time_start = time.time()
-    
-    def on_epoch_end(self, epoch: int, loss: float, model: torch.nn.Module,
-                    train_data: torch.Tensor, batch_size: int):
-        """
-        Call at the end of each epoch
+
+    def log_progress(self, model: torch.nn.Module, epoch: int, loss: float):
+        """Log training progress and create visualizations.
         
         Args:
+            model: The PyTorch model
             epoch: Current epoch number
             loss: Training loss for this epoch
-            model: The PyTorch model
-            train_data: Training data tensor
-            batch_size: Batch size used in training
         """
-        if epoch % self.display_epoch == 0:
-            tnow = time.time()
-            time_end = tnow - self.time_start
-            logging.info(
-                f"Epoch {epoch:6d}: avg.loss pe = {loss:4.3e}, "
-                f"{int(batch_size / time_end):d} points/sec, "
-                f"time elapsed = {(tnow - self.train_begin_time) / 3600.0:4.3f} hours"
-            )
-            self.history_loss.append(loss)
+        tnow = time.time()
+        time_end = tnow - self.time_start
         
-        if epoch % self.print_figure_epoch == 0:
-            # Plot loss history
-            plt.figure()
-            plt.semilogy(self.history_loss)
-            plt.xlabel(f'epoch: per {self.print_figure_epoch} epochs')
-            plt.ylabel('MSE loss')
-            plt.savefig('./loss.png')
-            plt.close()
+        # Calculate points/sec (512 points per epoch)
+        points_per_sec = 512 / time_end if time_end > 0 else 0
+        
+        logging.info(
+            f"Epoch {epoch:6d}: avg.loss pe = {loss:4.3e}, "
+            f"points/sec = {points_per_sec:8.2f}, "
+            f"time elapsed = {(tnow - self.train_begin_time) / 3600.0:4.3f} hours"
+        )
+        self.history_loss.append(loss)
+        
+        # Plot loss history
+        plt.figure()
+        plt.semilogy(self.history_loss)
+        plt.xlabel(f'epoch: per {self.print_figure_epoch} epochs')
+        plt.ylabel('MSE loss')
+        plt.savefig('loss.pdf')
+        plt.close()
+        
+        # Make predictions
+        model.eval()
+        with torch.no_grad():
+            # Get the full dataset
+            full_dataset = model.train_loader.dataset
+            inputs = full_dataset.tensors[0][:2000].to(next(model.parameters()).device)  # First 2000 points
+            targets = full_dataset.tensors[1][:2000]
             
             # Make predictions
-            model.eval()
-            with torch.no_grad():
-                inputs = train_data[0].to(next(model.parameters()).device)
-                u_pred = model(inputs).cpu().numpy().reshape(10, 200)
-                u_true = train_data[1].cpu().numpy().reshape(10, 200)
-
-            model.train()
-            
-            # Create visualization
-            tt = np.linspace(0, 100, 10)
-            xx = np.linspace(0, 1, 200)
-            tt, xx = np.meshgrid(tt, xx, indexing='ij')
-            
-            _, axs = plt.subplots(1, 3, figsize=(16, 4))
-            
-            im1 = axs[0].contourf(tt, xx, u_true, vmin=-5, vmax=5, levels=50, cmap='seismic')
-            plt.colorbar(im1, ax=axs[0])
-            
-            im2 = axs[1].contourf(tt, xx, u_pred, vmin=-5, vmax=5, levels=50, cmap='seismic')
-            plt.colorbar(im2, ax=axs[1])
-            
-            im3 = axs[2].contourf(tt, xx, (u_pred - u_true), vmin=-5, vmax=5, levels=50, cmap='seismic')
-            plt.colorbar(im3, ax=axs[2])
-            
-            axs[0].set_xlabel('t')
-            axs[0].set_ylabel('x')
-            axs[0].set_title('true')
-            axs[1].set_title('pred')
-            axs[2].set_title('error')
-            plt.savefig('vis.png')
-            plt.close()
+            u_pred = model(inputs).cpu().numpy().reshape(10, 200)
+            u_true = targets.numpy().reshape(10, 200)
         
-        if epoch % self.checkpt_epoch == 0 or epoch == self.n_epochs - 1:
-            print(f'save checkpoint epoch: {epoch}...')
-            torch.save(
-                model.state_dict(),
-                f"{self.save_dir}/ckpt-{epoch}.weights.pth"
-            )
+        model.train()
+        
+        # Create visualization
+        tt = np.linspace(0, 100, 10)
+        xx = np.linspace(0, 1, 200)
+        tt, xx = np.meshgrid(tt, xx, indexing='ij')
+        
+        _, axs = plt.subplots(1, 3, figsize=(16, 4))
+        
+        im1 = axs[0].contourf(tt, xx, u_true, vmin=-5, vmax=5, levels=50, cmap='seismic')
+        plt.colorbar(im1, ax=axs[0])
+        
+        im2 = axs[1].contourf(tt, xx, u_pred, vmin=-5, vmax=5, levels=50, cmap='seismic')
+        plt.colorbar(im2, ax=axs[1])
+        
+        im3 = axs[2].contourf(tt, xx, (u_pred - u_true), vmin=-5, vmax=5, levels=50, cmap='seismic')
+        plt.colorbar(im3, ax=axs[2])
+        
+        axs[0].set_xlabel('t')
+        axs[0].set_ylabel('x')
+        axs[0].set_title('true')
+        axs[1].set_title('pred')
+        axs[2].set_title('error')
+        plt.savefig('vis.pdf')
+        plt.close()
+
+    def save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int):
+        """Save a model checkpoint.
+        
+        Args:
+            model: The PyTorch model to save
+            optimizer: The optimizer
+            epoch: Current epoch number
+        """
+        print(f'save checkpoint epoch: {epoch}...')
+        torch.save(
+            {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss_history': self.history_loss,
+            },
+            f"{self.save_dir}/ckpt-{epoch}.weights.pth"
+        )
+
+def get_scheduler(optimizer, nepoch):
+    """Creates a learning rate scheduler that matches the TensorFlow implementation.
+    
+    The schedule is:
+    - First 1000 epochs: initial learning rate (1e-4)
+    - 1000-2000 epochs: 1e-3
+    - 2000-4000 epochs: 5e-4
+    - After 4000 epochs: 1e-4
+    """
+    def lr_lambda(epoch):
+        if epoch < 1000:
+            return 1.0  # Keep initial learning rate
+        elif epoch < 2000:
+            return 10.0  # 1e-3 (10 times the initial rate)
+        elif epoch < 4000:
+            return 5.0  # 5e-4 (5 times the initial rate)
+        else:
+            return 1.0  # 1e-4 (back to initial rate)
+    
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 def train_model(
     model: torch.nn.Module,
     train_loader: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     n_epochs: int,
-    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
-    logger: Optional[TrainingLogger] = None
-) -> Dict[str, Any]:
-    """
-    Train a PyTorch model
-    
+    logger: TrainingLogger,
+    scaler: torch.cuda.amp.GradScaler = None,
+):
+    """Train a model.
+
     Args:
-        model: PyTorch model to train
-        train_loader: DataLoader for training data
-        optimizer: PyTorch optimizer
-        n_epochs: Number of epochs to train
-        device: Device to train on
-        logger: Optional TrainingLogger instance
-    
-    Returns:
-        Dictionary containing training history
+        model: The model to train
+        train_loader: The data loader for training data
+        optimizer: The optimizer to use
+        n_epochs: Number of epochs to train for
+        logger: The logger to use for tracking progress
+        scaler: Optional gradient scaler for mixed precision training
     """
-    model = model.to(device)
-    criterion = torch.nn.MSELoss()
+    # Store train_loader in model for visualization
+    model.train_loader = train_loader
     
-    if logger is None:
-        logger = TrainingLogger()
+    # Create scheduler
+    scheduler = get_scheduler(optimizer, n_epochs)
     
+    # Training loop
+    history = []
     for epoch in range(n_epochs):
-        logger.on_epoch_begin()
-        
-        # Training loop
+        logger.on_epoch_begin(epoch)
         model.train()
-        total_loss = 0
-        for _, (inputs, targets) in enumerate(train_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
+        total_loss = 0.0
+        num_batches = 0
+
+        for batch_inputs, batch_targets in train_loader:
+            # Move data to the same device as model
+            batch_inputs = batch_inputs.to(next(model.parameters()).device)
+            batch_targets = batch_targets.to(next(model.parameters()).device)
             
             optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            
+
+            # Forward pass with automatic mixed precision if enabled
+            if scaler is not None:
+                with torch.cuda.amp.autocast():
+                    outputs = model(batch_inputs)
+                    loss = torch.nn.functional.mse_loss(outputs, batch_targets)
+                
+                # Backward pass with gradient scaling
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                outputs = model(batch_inputs)
+                loss = torch.nn.functional.mse_loss(outputs, batch_targets)
+                loss.backward()
+                optimizer.step()
+
             total_loss += loss.item()
-        
-        # Calculate average loss for the epoch
-        avg_loss = total_loss / len(train_loader)
-        
+            num_batches += 1
+
+        # Calculate average loss for this epoch
+        avg_loss = total_loss / num_batches
+        history.append(avg_loss)
+
+        # Update learning rate
+        scheduler.step()
+
         # Log progress
-        logger.on_epoch_end(
-            epoch,
-            avg_loss,
-            model,
-            train_loader.dataset.tensors,
-            train_loader.batch_size
-        )
-    
-    return {"loss_history": logger.history_loss} 
+        if (epoch + 1) % logger.display_epoch == 0:
+            print(f"Epoch [{epoch+1}/{n_epochs}], Loss: {avg_loss:.8f}, LR: {scheduler.get_last_lr()[0]:.8f}")
+
+        # Additional logging if needed
+        if (epoch + 1) % logger.print_figure_epoch == 0:
+            logger.log_progress(model, epoch + 1, avg_loss)
+
+        # Save checkpoint if needed
+        if (epoch + 1) % logger.checkpt_epoch == 0:
+            logger.save_checkpoint(model, optimizer, epoch + 1)
+
+    return history 

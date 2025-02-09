@@ -2,35 +2,34 @@
 ## Speaker Notes
 
 ### Catchphrase
-- Consider you want to calculate the air flow around an aircraft wing
+- Imagine trying to model ocean temperatures or airflow around an aircraft wing
 
-### Title Slide (30 seconds)
+### Title Slide
 - Brief personal introduction
 - Acknowledge the original NIF paper authors
 - Set context: "Today I'll present our comparative study of different Neural Implicit Flow implementations"
 
-### Outline (30 seconds)
+### Outline
 - Quick overview of structure
 - Emphasize focus on implementation comparison
 - "We'll look at three different implementations and their performance characteristics"
 
-### Introduction (3 minutes)
+### Introduction
 
 #### Problem Space & Motivation
-- Start with relatable example: "Imagine trying to model ocean temperatures or airflow around an aircraft wing"
+- SVD: Singular Value Decomposition
+- CAE: Convolutional Autoencoder
 - Key points:
   - High-dimensional data is everywhere in scientific computing
   - Traditional methods struggle with real-world complexity
   - Need for better tools is pressing
-- Emphasize practical impact: "This affects everything from weather prediction to aircraft design"
 
-#### Current Challenges
 - Walk through limitations systematically:
   - SVD: "While mathematically elegant, breaks down with variable geometry"
   - CAE: "Requires fixed grids, limiting real-world applications"
 - Connect to audience: "If you've worked with CFD or climate models, you've likely encountered these limitations"
 
-### Neural Implicit Flow Framework (4 minutes)
+### Neural Implicit Flow Framework
 
 #### Core Architecture
 - Use architecture diagram effectively:
@@ -40,10 +39,7 @@
 - Real-world analogy: "Think of ShapeNet as a specialized tool that adapts based on ParameterNet's instructions"
 
 #### Mathematical Formulation
-- Keep it accessible:
-  - "Don't worry about the details of the equations"
-  - Focus on intuition: "What we're really doing is mapping space and time to a value"
-  - Emphasize practical significance: "This formulation allows us to handle any point in space and time"
+- From slides
 
 ### Implementation Approaches (5 minutes)
 
@@ -53,43 +49,34 @@
 - What we learned: "This comparison revealed interesting trade-offs"
 
 #### Implementation Details
-For each implementation:
-- Start with motivation
-- Highlight key features
-- Show code snippets briefly: "This gives you a flavor of the implementation"
-
 Key talking points:
 - Upstream: "Based on original paper, but modernized"
 - TF Functional: "Complete redesign focusing on functional principles"
 - PyTorch: "Leveraging modern framework features"
 
-### Experimental Setup (3 minutes)
+### Experimental Setup
 
 #### Test Cases
 - Low Frequency:
   - "Simple case to establish baseline"
-  - Walk through equation meaning
   - Point out key visualization features
+
 - High Frequency:
   - "This is where things get interesting"
-  - Explain why this case is challenging
-  - Connect to real-world scenarios
-
-#### Network Architectures
-- Explain design choices:
-  - Why these layer sizes?
-  - Reason for different activation functions
-  - Impact on performance
+  - Explain why this case is challenging (high frequency, ReLU doesn't work well)
 
 ### Results and Analysis (4 minutes)
 
 #### Performance Overview
 - Start with headline results:
   - "Modern implementations significantly outperformed baseline"
-  - Highlight surprising findings
-- Processing Speed:
-  - "All implementations achieved practical speeds"
-  - Explain variations between implementations
+  - PyTorch Adam most stable between low and high frequency
+- Processing Speed (not in slides):
+  - All implementations achieved practical speeds
+
+### Optimiser Impact
+- PyTorch drastically better with Adam than AdaBelief
+- Original paper implementation only one which is (slightly) better with AdaBelief
 
 #### Visual Results
 - Walk through visualizations:
@@ -101,7 +88,7 @@ Key talking points:
   - Challenging regions
   - Implementation differences
 
-### Conclusions (1 minute)
+### Conclusions
 
 #### Key Findings
 - Emphasize practical implications:
@@ -109,36 +96,10 @@ Key talking points:
   - Optimizer selection is crucial
   - Real-world viability
 
-#### Future Directions
-- Connect to broader field:
-  - Potential applications
-  - Research opportunities
-  - Technical challenges ahead
 
-### Questions (remaining time)
+### Questions
 - Prepare for common questions:
   - Why these specific test cases?
   - Framework selection criteria
   - Performance bottlenecks
   - Real-world applications
-
-## Timing Notes
-- Keep introduction concise (3 minutes max)
-- Core technical content (12 minutes)
-- Results and implications (4 minutes)
-- Leave time for questions
-- Watch for audience engagement - adjust pace if needed
-
-## Visual Aids Tips
-- Use pointer for complex diagrams
-- Highlight key numbers when discussing results
-- Reference visualizations explicitly
-- Use gestures to indicate flow in architecture diagrams
-
-## Delivery Tips
-- Start strong with motivation
-- Use pauses after technical points
-- Make eye contact during key findings
-- Modulate voice for emphasis
-- End with clear take-home message
-

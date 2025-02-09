@@ -28,6 +28,12 @@
 }
 \lstset{style=mystyle}
 
+% Handle missing images gracefully
+\DeclareGraphicsExtensions{.pdf,.png,.jpg}
+
+% Add the results directory to the graphics path
+\graphicspath{{../../results/}}
+
 \title{Neural Implicit Flow: A Comparative Study}
 \subtitle{Implementation Approaches and Performance Analysis}
 \author{Christian Beneke}
@@ -103,7 +109,7 @@
         
         \column{0.4\textwidth}
         \begin{figure}
-            \includegraphics[width=\textwidth]{hypernetwork_diagram.png}
+            \includegraphics[width=\textwidth]{../../20-minute-presentation/latex/hypernetwork_diagram}
             \caption{NIF Architecture}
         \end{figure}
     \end{columns}
@@ -151,16 +157,16 @@
             \item Improved gradient tape management
             \item Enhanced base class structure
         \end{itemize}
-        \item Code example:
-        \begin{lstlisting}[language=Python]
-class HyperLayer(tf.keras.layers.Layer):
-    def __init__(self, weights_from, weights_to,
-                 bias_offset, biases_from, biases_to):
-        self.weights_from = weights_from
-        self.weights_to = weights_to
-        self.biases_from = bias_offset + biases_from
-        self.biases_to = bias_offset + biases_to
-        \end{lstlisting}
+%         \item Code example:
+%         \begin{lstlisting}[language=Python]
+% class HyperLayer(tf.keras.layers.Layer):
+%     def __init__(self, weights_from, weights_to,
+%                  bias_offset, biases_from, biases_to):
+%         self.weights_from = weights_from
+%         self.weights_to = weights_to
+%         self.biases_from = bias_offset + biases_from
+%         self.biases_to = bias_offset + biases_to
+%         \end{lstlisting}
     \end{itemize}
 \end{frame}
 
@@ -213,7 +219,7 @@ class HyperLayer(tf.keras.layers.Layer):
         
         \column{0.4\textwidth}
         \begin{figure}
-            \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adam-20250206-1105-1/vis}
+            \includegraphics[width=\textwidth]{functional/low-frequency-adam-20250206-1105-1/vis}
             \caption{Low Frequency Example}
         \end{figure}
     \end{columns}
@@ -232,7 +238,7 @@ class HyperLayer(tf.keras.layers.Layer):
         
         \column{0.4\textwidth}
         \begin{figure}
-            \includegraphics[width=\textwidth]{../../results/functional/high-frequency-adam-20250206-1520-1/vis}
+            \includegraphics[width=\textwidth]{functional/high-frequency-adam-20250206-1520-1/vis}
             \caption{High Frequency Example}
         \end{figure}
     \end{columns}
@@ -319,14 +325,14 @@ class HyperLayer(tf.keras.layers.Layer):
 
 \begin{frame}{Visual Results - Low Frequency}
     \begin{figure}
-        \includegraphics[width=\textwidth]{../../results/functional/low-frequency-adam-20250206-1105-1/vis}
+        \includegraphics[width=\textwidth]{functional/low-frequency-adam-20250206-1105-1/vis}
         \caption{Low Frequency Predictions (TF Functional API)}
     \end{figure}
 \end{frame}
 
 \begin{frame}{Visual Results - High Frequency}
     \begin{figure}
-        \includegraphics[width=\textwidth]{../../results/functional/high-frequency-adam-20250206-1520-1/vis}
+        \includegraphics[width=\textwidth]{functional/high-frequency-adam-20250206-1520-1/vis}
         \caption{High Frequency Predictions (TF Functional API)}
     \end{figure}
 \end{frame}
